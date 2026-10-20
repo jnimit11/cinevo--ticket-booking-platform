@@ -1,0 +1,2 @@
+ALTER TABLE "showtimes" DROP CONSTRAINT "showtimes_valid_time";--> statement-breakpoint
+ALTER TABLE "showtimes" ADD CONSTRAINT "showtimes_end_after_start" CHECK ("showtimes"."ends_at" > "showtimes"."starts_at");
