@@ -1,6 +1,12 @@
-import { and, count, desc, eq, gte, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, lt } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { cinemas, movies, screens, showtimes } from "../db/schema/index.js";
+import {
+  cinemas,
+  movies,
+  screens,
+  seats,
+  showtimes,
+} from "../db/schema/index.js";
 import {
   createShowtimeSchema,
   listShowtimesQuerySchema,
@@ -173,6 +179,64 @@ export async function getShowtimes(req, res, next) {
       },
       count: results.length,
       showtimes: results,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getShowtimeSeats(req, res, next) {
+  try {
+    const { showtimeId } = req.params;
+
+    // Find the requested showtime.
+    const [showtime] = await db
+      .select({
+        id: showtimes.id,
+        startsAt: showtimes.startsAt,
+        endsAt: showtimes.endsAt,
+        priceInPaise: showtimes.priceInPaise,
+        screenId: screens.id,
+        screenName: screens.name,
+        cinemaName: cinemas.name,
+        movieTitle: movies.title,
+      })
+      .from(showtimes)
+      .innerJoin(movies, eq(showtimes.movieId, movies.id))
+      .innerJoin(screens, eq(showtimes.screenId, screens.id))
+      .innerJoin(cinemas, eq(screens.cinemaId, cinemas.id))
+      .where(eq(showtimes.id, showtimeId))
+      .limit(1);
+
+    if (!showtime) {
+      return res.status(404).json({
+        success: false,
+        message: "Showtime not found.",
+      });
+    }
+
+    // Fetch physical seats belonging to this screen.
+    const screenSeats = await db
+      .select({
+        id: seats.id,
+        rowLabel: seats.rowLabel,
+        seatNumber: seats.seatNumber,
+        seatType: seats.seatType,
+      })
+      .from(seats)
+      .where(eq(seats.screenId, showtime.screenId))
+      .orderBy(seats.rowLabel, seats.seatNumber);
+
+    return res.status(200).json({
+      success: true,
+      showtime,
+      totalSeats: screenSeats.length,
+      availableSeats: screenSeats.length,
+      bookedSeats: 0,
+      seats: screenSeats.map((seat) => ({
+        ...seat,
+        status: "available",
+      })),
     });
   } catch (error) {
     next(error);
