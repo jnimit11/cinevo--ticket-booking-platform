@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, gt, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, isNull, lt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   bookingSeats,
@@ -232,6 +232,7 @@ export async function getShowtimeSeats(req, res, next) {
         and(
           eq(bookingSeats.seatId, seats.id),
           eq(bookingSeats.showtimeId, showtime.id),
+          isNull(bookingSeats.releasedAt),
         ),
       )
       .leftJoin(

@@ -191,12 +191,13 @@ export const bookingSeats = pgTable(
     priceInPaise: integer("price_in_paise").notNull(),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
+
+    releasedAt: timestamp("released_at"),
   },
   (table) => [
-    uniqueIndex("booking_seats_showtime_seat_unique").on(
-      table.showtimeId,
-      table.seatId,
-    ),
+    uniqueIndex("booking_seats_showtime_seat_active_unique")
+      .on(table.showtimeId, table.seatId)
+      .where(sql`${table.releasedAt} IS NULL`),
     check("booking_seats_price_nonnegative", sql`${table.priceInPaise} >= 0`),
   ],
 );

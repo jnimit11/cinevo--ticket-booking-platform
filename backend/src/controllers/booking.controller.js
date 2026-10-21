@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   bookingSeats,
@@ -167,6 +167,7 @@ export async function createBooking(req, res, next) {
           and(
             eq(bookingSeats.showtimeId, showtimeId),
             inArray(bookingSeats.seatId, seatIds),
+            isNull(bookingSeats.releasedAt),
           ),
         );
 
@@ -259,6 +260,101 @@ export async function createBooking(req, res, next) {
       });
     }
 
+    next(error);
+  }
+}
+
+export async function cancelBooking(req, res, next) {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.auth.userId;
+
+    const result = await db.transaction(async (tx) => {
+      const [bookingReference] = await tx
+        .select({ showtimeId: bookings.showtimeId })
+        .from(bookings)
+        .where(and(eq(bookings.id, bookingId), eq(bookings.userId, userId)))
+        .limit(1);
+
+      if (!bookingReference) {
+        return { error: "BOOKING_NOT_FOUND" };
+      }
+
+      const lockedShowtime = await tx.execute(
+        sql`
+          SELECT id
+          FROM showtimes
+          WHERE id = ${bookingReference.showtimeId}
+          FOR UPDATE
+        `,
+      );
+
+      if (!lockedShowtime.rows?.[0]) {
+        return { error: "BOOKING_NOT_FOUND" };
+      }
+
+      const lockedBooking = await tx.execute(
+        sql`
+          SELECT id, status
+          FROM bookings
+          WHERE id = ${bookingId}
+            AND user_id = ${userId}
+          FOR UPDATE
+        `,
+      );
+      const bookingRow = lockedBooking.rows?.[0];
+
+      if (!bookingRow) {
+        return { error: "BOOKING_NOT_FOUND" };
+      }
+
+      if (bookingRow.status !== "confirmed") {
+        return { error: "BOOKING_ALREADY_CANCELLED" };
+      }
+
+      const updatedAt = new Date();
+      const [booking] = await tx
+        .update(bookings)
+        .set({
+          status: "cancelled",
+          updatedAt,
+        })
+        .where(eq(bookings.id, bookingId))
+        .returning();
+
+      await tx
+        .update(bookingSeats)
+        .set({ releasedAt: updatedAt })
+        .where(
+          and(
+            eq(bookingSeats.bookingId, bookingId),
+            isNull(bookingSeats.releasedAt),
+          ),
+        );
+
+      return { booking };
+    });
+
+    if (result.error === "BOOKING_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
+    }
+
+    if (result.error === "BOOKING_ALREADY_CANCELLED") {
+      return res.status(409).json({
+        success: false,
+        message: "Booking has already been cancelled.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully.",
+      booking: result.booking,
+    });
+  } catch (error) {
     next(error);
   }
 }

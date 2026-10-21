@@ -43,6 +43,13 @@
       "when": 1792565877439,
       "tag": "0005_open_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792569974997,
+      "tag": "0006_bored_bastion",
+      "breakpoints": true
     }
   ]
 }
