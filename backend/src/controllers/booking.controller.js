@@ -1,12 +1,95 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   bookingSeats,
   bookings,
+  cinemas,
+  movies,
+  screens,
   seats,
   showtimes,
 } from "../db/schema/index.js";
 import { createBookingSchema } from "../validators/booking.validator.js";
+
+export async function getMyBookings(req, res, next) {
+  try {
+    const rows = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        totalAmountInPaise: bookings.totalAmountInPaise,
+        createdAt: bookings.createdAt,
+        updatedAt: bookings.updatedAt,
+        showtimeId: showtimes.id,
+        startsAt: showtimes.startsAt,
+        endsAt: showtimes.endsAt,
+        movieTitle: movies.title,
+        cinemaName: cinemas.name,
+        screenName: screens.name,
+        bookingSeatId: bookingSeats.id,
+        rowLabel: seats.rowLabel,
+        seatNumber: seats.seatNumber,
+        seatType: seats.seatType,
+        priceInPaise: bookingSeats.priceInPaise,
+      })
+      .from(bookings)
+      .innerJoin(showtimes, eq(bookings.showtimeId, showtimes.id))
+      .innerJoin(movies, eq(showtimes.movieId, movies.id))
+      .innerJoin(screens, eq(showtimes.screenId, screens.id))
+      .innerJoin(cinemas, eq(screens.cinemaId, cinemas.id))
+      .leftJoin(bookingSeats, eq(bookingSeats.bookingId, bookings.id))
+      .leftJoin(seats, eq(bookingSeats.seatId, seats.id))
+      .where(eq(bookings.userId, req.auth.userId))
+      .orderBy(
+        desc(bookings.createdAt),
+        bookings.id,
+        seats.rowLabel,
+        seats.seatNumber,
+      );
+
+    const bookingsById = new Map();
+
+    for (const row of rows) {
+      let booking = bookingsById.get(row.id);
+
+      if (!booking) {
+        booking = {
+          id: row.id,
+          status: row.status,
+          totalAmountInPaise: row.totalAmountInPaise,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          showtime: {
+            id: row.showtimeId,
+            startsAt: row.startsAt,
+            endsAt: row.endsAt,
+            movieTitle: row.movieTitle,
+            cinemaName: row.cinemaName,
+            screenName: row.screenName,
+          },
+          seats: [],
+        };
+        bookingsById.set(row.id, booking);
+      }
+
+      if (row.bookingSeatId !== null) {
+        booking.seats.push({
+          rowLabel: row.rowLabel,
+          seatNumber: row.seatNumber,
+          seatType: row.seatType,
+          priceInPaise: row.priceInPaise,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      bookings: [...bookingsById.values()],
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function createBooking(req, res, next) {
   try {
