@@ -1,6 +1,8 @@
 import { and, count, desc, eq, gte, gt, lt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
+  bookingSeats,
+  bookings,
   cinemas,
   movies,
   screens,
@@ -222,21 +224,42 @@ export async function getShowtimeSeats(req, res, next) {
         rowLabel: seats.rowLabel,
         seatNumber: seats.seatNumber,
         seatType: seats.seatType,
+        bookingId: bookings.id,
       })
       .from(seats)
+      .leftJoin(
+        bookingSeats,
+        and(
+          eq(bookingSeats.seatId, seats.id),
+          eq(bookingSeats.showtimeId, showtime.id),
+        ),
+      )
+      .leftJoin(
+        bookings,
+        and(
+          eq(bookings.id, bookingSeats.bookingId),
+          eq(bookings.status, "confirmed"),
+        ),
+      )
       .where(eq(seats.screenId, showtime.screenId))
       .orderBy(seats.rowLabel, seats.seatNumber);
+
+    const seatsWithStatus = screenSeats.map(({ bookingId, ...seat }) => ({
+      ...seat,
+      status: bookingId !== null ? "booked" : "available",
+    }));
+    const bookedSeats = seatsWithStatus.filter(
+      (seat) => seat.status === "booked",
+    ).length;
+    const totalSeats = seatsWithStatus.length;
 
     return res.status(200).json({
       success: true,
       showtime,
-      totalSeats: screenSeats.length,
-      availableSeats: screenSeats.length,
-      bookedSeats: 0,
-      seats: screenSeats.map((seat) => ({
-        ...seat,
-        status: "available",
-      })),
+      totalSeats,
+      availableSeats: totalSeats - bookedSeats,
+      bookedSeats,
+      seats: seatsWithStatus,
     });
   } catch (error) {
     next(error);

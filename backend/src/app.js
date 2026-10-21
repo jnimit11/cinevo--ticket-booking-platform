@@ -6,6 +6,7 @@ import movieRoutes from "./routes/movie.routes.js";
 import cinemaRoutes from "./routes/cinema.routes.js";
 import screenRoutes from "./routes/screen.routes.js";
 import showtimeRoutes from "./routes/showtime.routes.js"
+import bookingRoutes from "./routes/booking.routes.js";
 
 const app = express();
 
@@ -25,10 +26,10 @@ app.use("/api/movies", movieRoutes);
 app.use("/api/cinemas", cinemaRoutes);
 app.use("/api/screens", screenRoutes);
 app.use("/api/showtimes", showtimeRoutes)
+app.use("/api/bookings", bookingRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
-S
   res.status(500).json({
     success: false,
     message: "Internal server error",

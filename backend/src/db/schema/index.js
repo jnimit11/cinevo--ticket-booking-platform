@@ -14,6 +14,11 @@ import {
 
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 
+export const bookingStatusEnum = pgEnum("booking_status", [
+  "confirmed",
+  "cancelled",
+]);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
 
@@ -76,7 +81,6 @@ export const screens = pgTable(
   ],
 );
 
-
 export const seats = pgTable(
   "seats",
   {
@@ -90,9 +94,7 @@ export const seats = pgTable(
 
     seatNumber: integer("seat_number").notNull(),
 
-    seatType: varchar("seat_type", { length: 20 })
-      .notNull()
-      .default("regular"),
+    seatType: varchar("seat_type", { length: 20 }).notNull().default("regular"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -140,5 +142,61 @@ export const showtimes = pgTable(
       sql`${table.endsAt} > ${table.startsAt}`,
     ),
     check("showtimes_price_nonnegative", sql`${table.priceInPaise} >= 0`),
+  ],
+);
+
+export const bookings = pgTable(
+  "bookings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+
+    showtimeId: uuid("showtime_id")
+      .notNull()
+      .references(() => showtimes.id, { onDelete: "restrict" }),
+
+    status: bookingStatusEnum("status").default("confirmed").notNull(),
+
+    totalAmountInPaise: integer("total_amount_in_paise").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check("bookings_amount_nonnegative", sql`${table.totalAmountInPaise} >= 0`),
+  ],
+);
+
+export const bookingSeats = pgTable(
+  "booking_seats",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+
+    showtimeId: uuid("showtime_id")
+      .notNull()
+      .references(() => showtimes.id, { onDelete: "restrict" }),
+
+    seatId: uuid("seat_id")
+      .notNull()
+      .references(() => seats.id, { onDelete: "restrict" }),
+
+    priceInPaise: integer("price_in_paise").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("booking_seats_showtime_seat_unique").on(
+      table.showtimeId,
+      table.seatId,
+    ),
+    check("booking_seats_price_nonnegative", sql`${table.priceInPaise} >= 0`),
   ],
 );
