@@ -99,7 +99,7 @@ export async function login(req, res, next) {
       token,
     });
   } catch (error) {
-    console.error("Login error:", error);
+    next(error);
   }
 }
 

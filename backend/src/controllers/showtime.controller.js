@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, gt, isNull, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   bookingSeats,
@@ -13,6 +13,7 @@ import {
   createShowtimeSchema,
   listShowtimesQuerySchema,
 } from "../validators/showtime.validator.js";
+import { createShowtimeWithOverlapGuard } from "../services/showtime.service.js";
 
 export async function createShowtime(req, res, next) {
   try {
@@ -64,40 +65,25 @@ export async function createShowtime(req, res, next) {
         message: "Show duration cannot be shorter than movie duration",
       });
     }
-    const [conflictingShowtime] = await db
-      .select({ id: showtimes.id })
-      .from(showtimes)
-      .where(
-        and(
-          eq(showtimes.screenId, screenId),
-          lt(showtimes.startsAt, end),
-          gt(showtimes.endsAt, start),
-        ),
-      )
-      .limit(1);
+    const result = await createShowtimeWithOverlapGuard(db, {
+      movieId,
+      screenId,
+      startsAt: start,
+      endsAt: end,
+      priceInPaise,
+    });
 
-    if (conflictingShowtime) {
+    if (result.conflict) {
       return res.status(409).json({
         success: false,
         message: "This screen already has a show scheduled during that time",
       });
     }
 
-    const [showtime] = await db
-      .insert(showtimes)
-      .values({
-        movieId,
-        screenId,
-        startsAt: start,
-        endsAt: end,
-        priceInPaise,
-      })
-      .returning();
-
     return res.status(201).json({
       success: true,
       message: "Showtime created successfully",
-      showtime,
+      showtime: result.showtime,
     });
   } catch (error) {
     next(error);

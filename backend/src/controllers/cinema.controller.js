@@ -1,16 +1,24 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { cinemas } from "../db/schema/index.js";
-import { createCinemaSchema } from "../validators/cinema.validator.js";
+import {
+  createCinemaSchema,
+  listCinemasQuerySchema,
+} from "../validators/cinema.validator.js";
 
 export async function getCinemas(req, res, next) {
   try {
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+    const validation = listCinemasQuerySchema.safeParse(req.query);
 
-    const city =
-      typeof req.query.city === "string" ? req.query.city.trim() : "";
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid query parameters",
+        errors: validation.error.issues,
+      });
+    }
 
+    const { page, limit, city } = validation.data;
     const offset = (page - 1) * limit;
 
     const whereClause = city ? eq(cinemas.city, city) : undefined;

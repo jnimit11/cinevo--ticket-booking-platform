@@ -1,6 +1,6 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { authenticate, cancelExistingBooking, createBooking, getMovieById, getMovies, getMyBookings, getSeatsForShowtime, getShowtimesByMovieId } from './lib/api'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { authenticate, cancelExistingBooking, createBooking, createDashboardCinema, createDashboardMovie, createDashboardScreen, createDashboardShowtime, generateDashboardSeats, getDashboardCinemas, getDashboardMovies, getDashboardShowtimes, getMovieById, getMovies, getMyBookings, getSeatsForShowtime, getShowtimesByMovieId } from './lib/api'
 import './App.css'
 
 function formatDuration(minutes) {
@@ -62,19 +62,31 @@ function getSeatLabel(seat) {
 
 const MAX_BOOKING_SEATS = 12
 
-function AuthForm({ onAuthenticated, message = '' }) {
-  const [authMode, setAuthMode] = useState('login')
+function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onModeChange }) {
+  const [authMode, setAuthMode] = useState(initialMode)
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
   const [authStatus, setAuthStatus] = useState('idle')
   const [authError, setAuthError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const idPrefix = useId()
 
   async function submitAuthentication(event) {
     event.preventDefault()
     setAuthError('')
+
+    if (authMode === 'register' && authForm.name.trim().length < 2) {
+      setAuthError('Name must contain at least 2 non-space characters.')
+      return
+    }
+
     setAuthStatus('loading')
 
     try {
-      const session = await authenticate(authForm, authMode)
+      const session = await authenticate({
+        ...authForm,
+        name: authForm.name.trim(),
+        email: authForm.email.trim(),
+      }, authMode)
       onAuthenticated(session)
       setAuthForm({ name: '', email: '', password: '' })
       setAuthStatus('idle')
@@ -95,18 +107,22 @@ function AuthForm({ onAuthenticated, message = '' }) {
           className="auth-mode-toggle"
           type="button"
           onClick={() => {
-            setAuthMode((mode) => mode === 'login' ? 'register' : 'login')
+            const nextMode = authMode === 'login' ? 'register' : 'login'
+            setAuthMode(nextMode)
+            onModeChange?.(nextMode)
             setAuthError('')
           }}
         >
           {authMode === 'login' ? 'Create account' : 'I have an account'}
         </button>
       </div>
-      {message && <p className="auth-error" role="status">{message}</p>}
       {authMode === 'register' && (
         <label className="auth-field">
           Name
           <input
+            id={`${idPrefix}-name`}
+            name="name"
+            type="text"
             autoComplete="name"
             minLength="2"
             maxLength="100"
@@ -119,6 +135,8 @@ function AuthForm({ onAuthenticated, message = '' }) {
       <label className="auth-field">
         Email
         <input
+          id={`${idPrefix}-email`}
+          name="email"
           type="email"
           autoComplete="email"
           maxLength="255"
@@ -127,19 +145,35 @@ function AuthForm({ onAuthenticated, message = '' }) {
           onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
         />
       </label>
-      <label className="auth-field">
-        Password
-        <input
-          type="password"
-          autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-          minLength={authMode === 'register' ? 8 : 1}
-          maxLength="72"
-          required
-          value={authForm.password}
-          onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
-        />
-      </label>
+      <div className="auth-field">
+        <label htmlFor={`${idPrefix}-password`}>Password</label>
+        <div className="password-input-row">
+          <input
+            id={`${idPrefix}-password`}
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+            minLength={authMode === 'register' ? 8 : 1}
+            maxLength="72"
+            required
+            value={authForm.password}
+            onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
+          />
+          <button
+            className="password-visibility-button"
+            type="button"
+            aria-controls={`${idPrefix}-password`}
+            aria-pressed={showPassword}
+            onClick={() => setShowPassword((visible) => !visible)}
+          >
+            {showPassword ? 'Hide' : 'Show'}
+            <span className="visually-hidden"> password</span>
+          </button>
+        </div>
+        {authMode === 'register' && <small className="auth-field-hint">Use 8–72 characters.</small>}
+      </div>
       {authError && <p className="auth-error" role="alert">{authError}</p>}
+      {message && <p className="auth-error" role="alert">{message}</p>}
       <button className="primary-button auth-submit-button" type="submit" disabled={authStatus === 'loading'}>
         {authStatus === 'loading'
           ? 'Please wait...'
@@ -148,6 +182,31 @@ function AuthForm({ onAuthenticated, message = '' }) {
             : 'Create account'}
       </button>
     </form>
+  )
+}
+
+function AuthPage({ mode, onAuthenticated, onModeChange, onBack }) {
+  const isRegistration = mode === 'register'
+
+  return (
+    <main className="auth-page">
+      <button className="secondary-button back-button" type="button" onClick={onBack}>
+        ← Back
+      </button>
+      <div className="auth-page-heading">
+        <span className="section-kicker">{isRegistration ? 'YOUR NEXT MOVIE NIGHT STARTS HERE' : 'WELCOME BACK TO CINEVO'}</span>
+        <h1>{isRegistration ? 'Create your account.' : 'Sign in to Cinevo.'}</h1>
+        <p>{isRegistration
+          ? 'Create an account to book screenings and manage your reservations.'
+          : 'Sign in to continue to your bookings and saved screenings.'}</p>
+      </div>
+      <AuthForm
+        key={mode}
+        initialMode={mode}
+        onAuthenticated={onAuthenticated}
+        onModeChange={onModeChange}
+      />
+    </main>
   )
 }
 
@@ -431,6 +490,931 @@ function getMovieIdFromHash() {
   } catch {
     return match[1]
   }
+}
+
+function getAuthModeFromHash() {
+  if (window.location.hash === '#signin') return 'login'
+  if (window.location.hash === '#register') return 'register'
+  return null
+}
+
+function validateMovieForm(form) {
+  const errors = {}
+  const title = form.title.trim()
+  const language = form.language.trim()
+  const duration = Number(form.durationMinutes)
+
+  if (!title) errors.title = 'Enter a movie title.'
+  else if (title.length > 200) errors.title = 'Title must be 200 characters or fewer.'
+
+  if (!form.durationMinutes || !Number.isInteger(duration) || duration <= 0 || duration > 1000) {
+    errors.durationMinutes = 'Duration must be a positive whole number between 1 and 1,000 minutes.'
+  }
+
+  if (!language) errors.language = 'Enter the movie language.'
+  else if (language.length > 50) errors.language = 'Language must be 50 characters or fewer.'
+
+  if (form.releaseDate) {
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(form.releaseDate)
+    const date = dateMatch ? new Date(`${form.releaseDate}T00:00:00.000Z`) : null
+    if (!date || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== form.releaseDate) {
+      errors.releaseDate = 'Enter a valid release date.'
+    }
+  }
+
+  if (form.posterUrl.trim()) {
+    try {
+      new URL(form.posterUrl.trim())
+    } catch {
+      errors.posterUrl = 'Enter a valid poster URL.'
+    }
+  }
+
+  return errors
+}
+
+function AddMovieForm({ token, onCreated }) {
+  const [form, setForm] = useState({
+    title: '',
+    durationMinutes: '',
+    language: '',
+    description: '',
+    releaseDate: '',
+    posterUrl: '',
+  })
+  const [errors, setErrors] = useState({})
+  const [status, setStatus] = useState('idle')
+  const [apiError, setApiError] = useState('')
+  const [createdTitle, setCreatedTitle] = useState('')
+  const submissionInFlight = useRef(false)
+
+  function updateField(event) {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+    setErrors((current) => ({ ...current, [name]: '' }))
+    setApiError('')
+    setStatus((current) => current === 'error' ? 'idle' : current)
+  }
+
+  async function submitMovie(event) {
+    event.preventDefault()
+    if (submissionInFlight.current) return
+
+    const validationErrors = validateMovieForm(form)
+    setErrors(validationErrors)
+    setApiError('')
+    setCreatedTitle('')
+
+    if (Object.keys(validationErrors).length) {
+      setStatus('idle')
+      return
+    }
+
+    setStatus('loading')
+
+    const payload = {
+      title: form.title.trim(),
+      durationMinutes: Number(form.durationMinutes),
+      language: form.language.trim(),
+    }
+    if (form.description.trim()) payload.description = form.description.trim()
+    if (form.releaseDate) payload.releaseDate = form.releaseDate
+    if (form.posterUrl.trim()) payload.posterUrl = form.posterUrl.trim()
+
+    submissionInFlight.current = true
+    try {
+      const createdMovie = await createDashboardMovie(payload, token)
+      onCreated(createdMovie)
+      setCreatedTitle(createdMovie.title)
+      setForm({
+        title: '',
+        durationMinutes: '',
+        language: '',
+        description: '',
+        releaseDate: '',
+        posterUrl: '',
+      })
+      setStatus('success')
+    } catch (error) {
+      setApiError(error.message || 'Unable to create the movie.')
+      setStatus('error')
+    } finally {
+      submissionInFlight.current = false
+    }
+  }
+
+  return (
+    <form className="admin-movie-form" noValidate onSubmit={submitMovie}>
+      <h3>Add Movie</h3>
+      <p className="admin-form-intro">Add a movie to the catalog. Fields marked required must be completed.</p>
+      <div className="admin-form-grid">
+        <label className="admin-form-field">
+          <span>Title <span aria-hidden="true">*</span></span>
+          <input name="title" value={form.title} onChange={updateField} maxLength={200} required aria-invalid={Boolean(errors.title)} aria-describedby={errors.title ? 'admin-movie-title-error' : undefined} />
+          {errors.title && <small id="admin-movie-title-error" className="admin-field-error">{errors.title}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Duration (minutes) <span aria-hidden="true">*</span></span>
+          <input name="durationMinutes" type="number" min="1" max="1000" step="1" value={form.durationMinutes} onChange={updateField} required aria-invalid={Boolean(errors.durationMinutes)} aria-describedby={errors.durationMinutes ? 'admin-movie-duration-error' : undefined} />
+          {errors.durationMinutes && <small id="admin-movie-duration-error" className="admin-field-error">{errors.durationMinutes}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Language <span aria-hidden="true">*</span></span>
+          <input name="language" value={form.language} onChange={updateField} maxLength={50} required aria-invalid={Boolean(errors.language)} aria-describedby={errors.language ? 'admin-movie-language-error' : undefined} />
+          {errors.language && <small id="admin-movie-language-error" className="admin-field-error">{errors.language}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Release date</span>
+          <input name="releaseDate" type="date" value={form.releaseDate} onChange={updateField} aria-invalid={Boolean(errors.releaseDate)} aria-describedby={errors.releaseDate ? 'admin-movie-date-error' : undefined} />
+          {errors.releaseDate && <small id="admin-movie-date-error" className="admin-field-error">{errors.releaseDate}</small>}
+        </label>
+        <label className="admin-form-field admin-form-wide">
+          <span>Poster URL</span>
+          <input name="posterUrl" type="url" value={form.posterUrl} onChange={updateField} aria-invalid={Boolean(errors.posterUrl)} aria-describedby={errors.posterUrl ? 'admin-movie-poster-error' : undefined} />
+          {errors.posterUrl && <small id="admin-movie-poster-error" className="admin-field-error">{errors.posterUrl}</small>}
+        </label>
+        <label className="admin-form-field admin-form-wide">
+          <span>Description</span>
+          <textarea name="description" value={form.description} onChange={updateField} rows="3" />
+        </label>
+      </div>
+      {apiError && <p className="admin-form-error" role="alert">{apiError}</p>}
+      {status === 'success' && <p className="admin-form-success" role="status">“{createdTitle}” was added to the movie catalog.</p>}
+      <button className="primary-button admin-submit-button" type="submit" disabled={status === 'loading'}>
+        {status === 'loading' ? 'Adding movie...' : 'Add Movie'}
+      </button>
+    </form>
+  )
+}
+
+function validateCinemaForm(form) {
+  const errors = {}
+  const name = form.name.trim()
+  const address = form.address.trim()
+  const city = form.city.trim()
+  const state = form.state.trim()
+  const postalCode = form.postalCode.trim()
+
+  if (!name) errors.name = 'Enter a cinema name.'
+  else if (name.length > 200) errors.name = 'Name must be 200 characters or fewer.'
+  if (!address) errors.address = 'Enter an address.'
+  if (!city) errors.city = 'Enter a city.'
+  else if (city.length > 100) errors.city = 'City must be 100 characters or fewer.'
+  if (!state) errors.state = 'Enter a state.'
+  else if (state.length > 100) errors.state = 'State must be 100 characters or fewer.'
+  if (postalCode.length > 10) errors.postalCode = 'Postal code must be 10 characters or fewer.'
+
+  return errors
+}
+
+function AddCinemaForm({ token, onCreated }) {
+  const [form, setForm] = useState({ name: '', address: '', city: '', state: '', postalCode: '' })
+  const [errors, setErrors] = useState({})
+  const [status, setStatus] = useState('idle')
+  const [apiError, setApiError] = useState('')
+  const [createdName, setCreatedName] = useState('')
+  const submissionInFlight = useRef(false)
+
+  function updateField(event) {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+    setErrors((current) => ({ ...current, [name]: '' }))
+    setApiError('')
+    setStatus((current) => current === 'error' ? 'idle' : current)
+  }
+
+  async function submitCinema(event) {
+    event.preventDefault()
+    if (submissionInFlight.current) return
+
+    const validationErrors = validateCinemaForm(form)
+    setErrors(validationErrors)
+    setApiError('')
+    setCreatedName('')
+    if (Object.keys(validationErrors).length) {
+      setStatus('idle')
+      return
+    }
+
+    const payload = {
+      name: form.name.trim(),
+      address: form.address.trim(),
+      city: form.city.trim(),
+      state: form.state.trim(),
+    }
+    if (form.postalCode.trim()) payload.postalCode = form.postalCode.trim()
+
+    submissionInFlight.current = true
+    setStatus('loading')
+    try {
+      const createdCinema = await createDashboardCinema(payload, token)
+      setCreatedName(createdCinema.name)
+      setForm({ name: '', address: '', city: '', state: '', postalCode: '' })
+      setStatus('success')
+      onCreated(createdCinema)
+    } catch (error) {
+      setApiError(error.message || 'Unable to create the cinema.')
+      setStatus('error')
+    } finally {
+      submissionInFlight.current = false
+    }
+  }
+
+  return (
+    <form className="admin-movie-form" noValidate onSubmit={submitCinema}>
+      <h3>Add Cinema</h3>
+      <p className="admin-form-intro">Add a cinema location. Fields marked required must be completed.</p>
+      <div className="admin-form-grid">
+        <label className="admin-form-field">
+          <span>Name <span aria-hidden="true">*</span></span>
+          <input name="name" value={form.name} onChange={updateField} maxLength={200} required aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'admin-cinema-name-error' : undefined} />
+          {errors.name && <small id="admin-cinema-name-error" className="admin-field-error">{errors.name}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Address <span aria-hidden="true">*</span></span>
+          <input name="address" value={form.address} onChange={updateField} required aria-invalid={Boolean(errors.address)} aria-describedby={errors.address ? 'admin-cinema-address-error' : undefined} />
+          {errors.address && <small id="admin-cinema-address-error" className="admin-field-error">{errors.address}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>City <span aria-hidden="true">*</span></span>
+          <input name="city" value={form.city} onChange={updateField} maxLength={100} required aria-invalid={Boolean(errors.city)} aria-describedby={errors.city ? 'admin-cinema-city-error' : undefined} />
+          {errors.city && <small id="admin-cinema-city-error" className="admin-field-error">{errors.city}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>State <span aria-hidden="true">*</span></span>
+          <input name="state" value={form.state} onChange={updateField} maxLength={100} required aria-invalid={Boolean(errors.state)} aria-describedby={errors.state ? 'admin-cinema-state-error' : undefined} />
+          {errors.state && <small id="admin-cinema-state-error" className="admin-field-error">{errors.state}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Postal code</span>
+          <input name="postalCode" value={form.postalCode} onChange={updateField} maxLength={10} aria-invalid={Boolean(errors.postalCode)} aria-describedby={errors.postalCode ? 'admin-cinema-postal-error' : undefined} />
+          {errors.postalCode && <small id="admin-cinema-postal-error" className="admin-field-error">{errors.postalCode}</small>}
+        </label>
+      </div>
+      {apiError && <p className="admin-form-error" role="alert">{apiError}</p>}
+      {status === 'success' && <p className="admin-form-success" role="status">“{createdName}” was added to the cinema list. Refreshing the list…</p>}
+      <button className="primary-button admin-submit-button" type="submit" disabled={status === 'loading'}>
+        {status === 'loading' ? 'Adding cinema...' : 'Add Cinema'}
+      </button>
+    </form>
+  )
+}
+
+function ScreenManagementSection({ token, screensCreatedThisSession, setScreensCreatedThisSession }) {
+  const [cinemas, setCinemas] = useState([])
+  const [cinemaStatus, setCinemaStatus] = useState('loading')
+  const [cinemaError, setCinemaError] = useState('')
+  const [cinemaLoadAttempt, setCinemaLoadAttempt] = useState(0)
+  const [screenForm, setScreenForm] = useState({ cinemaId: '', name: '', totalSeats: '' })
+  const [screenErrors, setScreenErrors] = useState({})
+  const [screenStatus, setScreenStatus] = useState('idle')
+  const [screenError, setScreenError] = useState('')
+  const [selectedScreenId, setSelectedScreenId] = useState('')
+  const [seatForm, setSeatForm] = useState({ rows: '', seatsPerRow: '', seatType: 'regular' })
+  const [seatErrors, setSeatErrors] = useState({})
+  const [seatStatus, setSeatStatus] = useState('idle')
+  const [seatError, setSeatError] = useState('')
+  const [seatSuccess, setSeatSuccess] = useState('')
+  const [confirmSeatWrite, setConfirmSeatWrite] = useState(false)
+  const screenRequestInFlight = useRef(false)
+  const seatRequestInFlight = useRef(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getDashboardCinemas({ signal: controller.signal })
+      .then((loadedCinemas) => {
+        setCinemas(loadedCinemas)
+        setCinemaStatus('success')
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setCinemaError(error.message || 'Unable to load cinemas for the screen form.')
+        setCinemaStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [cinemaLoadAttempt])
+
+  const selectedScreen = screensCreatedThisSession.find((screen) => screen.id === selectedScreenId)
+
+  function retryCinemaLoad() {
+    setCinemaError('')
+    setCinemaStatus('loading')
+    setCinemaLoadAttempt((attempt) => attempt + 1)
+  }
+
+  async function submitScreen(event) {
+    event.preventDefault()
+    if (screenRequestInFlight.current) return
+
+    const errors = {}
+    const name = screenForm.name.trim()
+    const totalSeats = Number(screenForm.totalSeats)
+    if (!screenForm.cinemaId || !cinemas.some((cinema) => cinema.id === screenForm.cinemaId)) {
+      errors.cinemaId = 'Select a cinema from the list.'
+    }
+    if (!name) errors.name = 'Enter a screen name.'
+    else if (name.length > 100) errors.name = 'Screen name must be 100 characters or fewer.'
+    if (!screenForm.totalSeats || !Number.isInteger(totalSeats) || totalSeats <= 0 || totalSeats > 1000) {
+      errors.totalSeats = 'Total seats must be a positive whole number between 1 and 1,000.'
+    }
+    setScreenErrors(errors)
+    setScreenError('')
+    if (Object.keys(errors).length) {
+      setScreenStatus('idle')
+      return
+    }
+
+    screenRequestInFlight.current = true
+    setScreenStatus('loading')
+    try {
+      const screen = await createDashboardScreen({
+        cinemaId: screenForm.cinemaId,
+        name,
+        totalSeats,
+      }, token)
+      const createdScreen = {
+        ...screen,
+        totalSeats,
+        cinemaId: screenForm.cinemaId,
+        cinemaName: cinemas.find((cinema) => cinema.id === screenForm.cinemaId)?.name || '',
+      }
+      setScreensCreatedThisSession((current) => [
+        createdScreen,
+        ...current.filter((item) => item.id !== createdScreen.id),
+      ])
+      setSelectedScreenId(createdScreen.id)
+      setScreenForm({ cinemaId: screenForm.cinemaId, name: '', totalSeats: '' })
+      setScreenStatus('success')
+      setSeatForm({ rows: '', seatsPerRow: '', seatType: 'regular' })
+      setSeatErrors({})
+      setSeatError('')
+      setSeatSuccess('')
+      setConfirmSeatWrite(false)
+    } catch (error) {
+      setScreenError(error.message || 'Unable to create the screen.')
+      setScreenStatus('error')
+    } finally {
+      screenRequestInFlight.current = false
+    }
+  }
+
+  async function submitSeatGeneration(event) {
+    event.preventDefault()
+    if (seatRequestInFlight.current || !selectedScreen || selectedScreen.seatsGenerated) return
+
+    const rows = Number(seatForm.rows)
+    const seatsPerRow = Number(seatForm.seatsPerRow)
+    const errors = {}
+    if (!Number.isInteger(rows) || rows < 1 || rows > 10) {
+      errors.rows = 'Rows must be a whole number from 1 to 10.'
+    }
+    if (!Number.isInteger(seatsPerRow) || seatsPerRow < 1 || seatsPerRow > 12) {
+      errors.seatsPerRow = 'Seats per row must be a whole number from 1 to 12.'
+    }
+    if (
+      Number.isInteger(rows) && Number.isInteger(seatsPerRow) &&
+      rows >= 1 && rows <= 10 && seatsPerRow >= 1 && seatsPerRow <= 12 &&
+      rows * seatsPerRow > selectedScreen.totalSeats
+    ) {
+      errors.layout = `This layout exceeds the screen capacity of ${selectedScreen.totalSeats} seats.`
+    }
+    if (!confirmSeatWrite) errors.confirmation = 'Confirm that you want to write these seat records.'
+    setSeatErrors(errors)
+    setSeatError('')
+    setSeatSuccess('')
+    if (Object.keys(errors).length) {
+      setSeatStatus('idle')
+      return
+    }
+
+    seatRequestInFlight.current = true
+    setSeatStatus('loading')
+    try {
+      const result = await generateDashboardSeats(selectedScreen.id, {
+        rows,
+        seatsPerRow,
+        seatType: seatForm.seatType,
+      }, token)
+      setSeatSuccess(`${result.totalSeats} seat records generated for ${selectedScreen.name}.`)
+      setSeatStatus('success')
+      setScreensCreatedThisSession((current) => current.map((screen) =>
+        screen.id === selectedScreen.id ? { ...screen, seatsGenerated: true } : screen,
+      ))
+    } catch (error) {
+      setSeatError(error.message || 'Unable to generate seats.')
+      setSeatStatus('error')
+    } finally {
+      seatRequestInFlight.current = false
+    }
+  }
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-heading">
+        <div>
+          <span className="section-kicker">CATALOG</span>
+          <h2>Screens</h2>
+          <p>Create screens and generate their seat layout.</p>
+        </div>
+      </div>
+      <p className="admin-capability">No screen-list endpoint exists. Screens below are only those created during this dashboard session and are not restored after reload.</p>
+      <form className="admin-movie-form" noValidate onSubmit={submitScreen}>
+        <h3>Create Screen</h3>
+        <div className="admin-form-grid">
+          <label className="admin-form-field admin-form-wide">
+            <span>Cinema <span aria-hidden="true">*</span></span>
+            <select
+              name="cinemaId"
+              value={screenForm.cinemaId}
+              onChange={(event) => {
+                setScreenForm((current) => ({ ...current, cinemaId: event.target.value }))
+                setScreenErrors((current) => ({ ...current, cinemaId: '' }))
+                setScreenError('')
+              }}
+              disabled={cinemaStatus !== 'success' || screenStatus === 'loading'}
+              required
+              aria-invalid={Boolean(screenErrors.cinemaId)}
+            >
+              <option value="">Select a cinema</option>
+              {cinemas.map((cinema) => <option key={cinema.id} value={cinema.id}>{cinema.name} — {cinema.city}</option>)}
+            </select>
+            {cinemaStatus === 'loading' && <small>Loading cinemas…</small>}
+            {cinemaStatus === 'error' && (
+              <small className="admin-field-error" role="alert">{cinemaError} <button className="admin-inline-retry" type="button" onClick={retryCinemaLoad}>Retry</button></small>
+            )}
+            {cinemaStatus === 'success' && cinemas.length === 0 && <small>No cinemas are available. Add a cinema before creating a screen.</small>}
+            {screenErrors.cinemaId && <small className="admin-field-error">{screenErrors.cinemaId}</small>}
+          </label>
+          <label className="admin-form-field">
+            <span>Screen name <span aria-hidden="true">*</span></span>
+            <input name="name" value={screenForm.name} onChange={(event) => {
+              setScreenForm((current) => ({ ...current, name: event.target.value }))
+              setScreenErrors((current) => ({ ...current, name: '' }))
+              setScreenError('')
+            }} maxLength={100} required aria-invalid={Boolean(screenErrors.name)} />
+            {screenErrors.name && <small className="admin-field-error">{screenErrors.name}</small>}
+          </label>
+          <label className="admin-form-field">
+            <span>Total seats <span aria-hidden="true">*</span></span>
+            <input name="totalSeats" type="number" min="1" max="1000" step="1" value={screenForm.totalSeats} onChange={(event) => {
+              setScreenForm((current) => ({ ...current, totalSeats: event.target.value }))
+              setScreenErrors((current) => ({ ...current, totalSeats: '' }))
+              setScreenError('')
+            }} required aria-invalid={Boolean(screenErrors.totalSeats)} />
+            {screenErrors.totalSeats && <small className="admin-field-error">{screenErrors.totalSeats}</small>}
+          </label>
+        </div>
+        {screenError && <p className="admin-form-error" role="alert">{screenError}</p>}
+        {screenStatus === 'success' && <p className="admin-form-success" role="status">Screen created. It is available for seat generation until this dashboard session ends.</p>}
+        <button className="primary-button admin-submit-button" type="submit" disabled={screenStatus === 'loading' || cinemaStatus !== 'success' || cinemas.length === 0}>
+          {screenStatus === 'loading' ? 'Creating screen...' : 'Create Screen'}
+        </button>
+      </form>
+      {screensCreatedThisSession.length > 0 && (
+        <ul className="admin-item-list admin-created-screens">
+          {screensCreatedThisSession.map((screen) => {
+            const cinema = cinemas.find((item) => item.id === screen.cinemaId)
+            return (
+              <li className="admin-item" key={screen.id}>
+                <strong>{screen.name}</strong>
+                <span>{cinema?.name || 'Cinema'} · Capacity {screen.totalSeats}</span>
+                {screen.seatsGenerated && <span>Seats generated</span>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <form className="admin-movie-form" noValidate onSubmit={submitSeatGeneration}>
+        <h3>Generate Seats</h3>
+        <p className="admin-form-intro">Seat generation writes seat records to the database and cannot be undone from this dashboard.</p>
+        <div className="admin-form-grid">
+          <label className="admin-form-field admin-form-wide">
+            <span>Screen <span aria-hidden="true">*</span></span>
+            <select value={selectedScreenId} onChange={(event) => {
+              setSelectedScreenId(event.target.value)
+              setSeatError('')
+              setSeatSuccess('')
+              setSeatErrors({})
+              setConfirmSeatWrite(false)
+            }}>
+              <option value="">Select a screen created this session</option>
+              {screensCreatedThisSession.map((screen) => (
+                <option key={screen.id} value={screen.id} disabled={screen.seatsGenerated}>{screen.name} ({screen.totalSeats} seats){screen.seatsGenerated ? ' — seats generated' : ''}</option>
+              ))}
+            </select>
+            {!screensCreatedThisSession.length && <small>Create a screen above to make it available here.</small>}
+            {selectedScreen?.seatsGenerated && <small>Seats have already been generated for this screen.</small>}
+          </label>
+          <label className="admin-form-field">
+            <span>Rows (1–10) <span aria-hidden="true">*</span></span>
+            <input type="number" min="1" max="10" step="1" value={seatForm.rows} onChange={(event) => {
+              setSeatForm((current) => ({ ...current, rows: event.target.value }))
+              setSeatErrors((current) => ({ ...current, rows: '', layout: '' }))
+              setSeatError('')
+            }} aria-invalid={Boolean(seatErrors.rows || seatErrors.layout)} disabled={!selectedScreen || selectedScreen.seatsGenerated || seatStatus === 'loading'} />
+            {seatErrors.rows && <small className="admin-field-error">{seatErrors.rows}</small>}
+          </label>
+          <label className="admin-form-field">
+            <span>Seats per row (1–12) <span aria-hidden="true">*</span></span>
+            <input type="number" min="1" max="12" step="1" value={seatForm.seatsPerRow} onChange={(event) => {
+              setSeatForm((current) => ({ ...current, seatsPerRow: event.target.value }))
+              setSeatErrors((current) => ({ ...current, seatsPerRow: '', layout: '' }))
+              setSeatError('')
+            }} aria-invalid={Boolean(seatErrors.seatsPerRow || seatErrors.layout)} disabled={!selectedScreen || selectedScreen.seatsGenerated || seatStatus === 'loading'} />
+            {seatErrors.seatsPerRow && <small className="admin-field-error">{seatErrors.seatsPerRow}</small>}
+          </label>
+          <label className="admin-form-field">
+            <span>Seat type</span>
+            <select value={seatForm.seatType} onChange={(event) => setSeatForm((current) => ({ ...current, seatType: event.target.value }))} disabled={!selectedScreen || selectedScreen.seatsGenerated || seatStatus === 'loading'}>
+              <option value="regular">Regular</option>
+              <option value="premium">Premium</option>
+              <option value="recliner">Recliner</option>
+            </select>
+          </label>
+        </div>
+        {seatErrors.layout && <p className="admin-field-error">{seatErrors.layout}</p>}
+        <label className="admin-confirm-field">
+          <input type="checkbox" checked={confirmSeatWrite} onChange={(event) => {
+            setConfirmSeatWrite(event.target.checked)
+            setSeatErrors((current) => ({ ...current, confirmation: '' }))
+          }} disabled={!selectedScreen || selectedScreen.seatsGenerated || seatStatus === 'loading'} />
+          I understand this will create seat records for the selected screen.
+        </label>
+        {seatErrors.confirmation && <p className="admin-field-error">{seatErrors.confirmation}</p>}
+        {seatError && <p className="admin-form-error" role="alert">{seatError}</p>}
+        {seatSuccess && <p className="admin-form-success" role="status">{seatSuccess}</p>}
+        <button className="primary-button admin-submit-button" type="submit" disabled={!selectedScreen || selectedScreen.seatsGenerated || seatStatus === 'loading'}>
+          {seatStatus === 'loading' ? 'Generating seats...' : 'Generate Seats'}
+        </button>
+      </form>
+    </section>
+  )
+}
+
+function parsePriceInPaise(value) {
+  const normalized = value.trim()
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null
+
+  const [rupees, paise = ''] = normalized.split('.')
+  const significantRupees = rupees.replace(/^0+(?=\d)/, '')
+  if (significantRupees.length > 15) return null
+  const amount = BigInt(significantRupees) * 100n + BigInt(paise.padEnd(2, '0') || '0')
+  return amount <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(amount) : null
+}
+
+function toApiTimestamp(localDateTime) {
+  const date = new Date(localDateTime)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+function ShowtimeForm({ token, screens, onCreated }) {
+  const [movies, setMovies] = useState([])
+  const [movieStatus, setMovieStatus] = useState('loading')
+  const [movieError, setMovieError] = useState('')
+  const [movieLoadAttempt, setMovieLoadAttempt] = useState(0)
+  const [form, setForm] = useState({
+    movieId: '',
+    screenId: '',
+    startsAt: '',
+    endsAt: '',
+    priceInRupees: '',
+  })
+  const [errors, setErrors] = useState({})
+  const [status, setStatus] = useState('idle')
+  const [apiError, setApiError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const submissionInFlight = useRef(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getDashboardMovies({ signal: controller.signal })
+      .then((loadedMovies) => {
+        setMovies(loadedMovies)
+        setMovieStatus('success')
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setMovieError(error.message || 'Unable to load movies for the showtime form.')
+        setMovieStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [movieLoadAttempt])
+
+  const selectedMovie = movies.find((movie) => movie.id === form.movieId)
+  const selectedScreen = screens.find((screen) => screen.id === form.screenId)
+
+  function updateField(event) {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+    setErrors((current) => ({ ...current, [name]: '' }))
+    setApiError('')
+    setSuccessMessage('')
+    setStatus((current) => current === 'error' || current === 'success' ? 'idle' : current)
+  }
+
+  async function submitShowtime(event) {
+    event.preventDefault()
+    if (submissionInFlight.current) return
+
+    const validationErrors = {}
+    if (!selectedMovie) validationErrors.movieId = 'Select a movie from the catalog.'
+    if (!selectedScreen) validationErrors.screenId = 'Select a screen created during this dashboard session.'
+
+    const startsAtDate = new Date(form.startsAt)
+    const endsAtDate = new Date(form.endsAt)
+    const startsAt = toApiTimestamp(form.startsAt)
+    const endsAt = toApiTimestamp(form.endsAt)
+    if (!form.startsAt || !startsAt || Number.isNaN(startsAtDate.getTime())) {
+      validationErrors.startsAt = 'Enter a valid start date and time.'
+    }
+    if (!form.endsAt || !endsAt || Number.isNaN(endsAtDate.getTime())) {
+      validationErrors.endsAt = 'Enter a valid end date and time.'
+    } else if (startsAt && endsAtDate <= startsAtDate) {
+      validationErrors.endsAt = 'End time must be after start time.'
+    } else if (selectedMovie && startsAt && endsAtDate - startsAtDate < selectedMovie.durationMinutes * 60_000) {
+      validationErrors.endsAt = `End time must allow at least ${selectedMovie.durationMinutes} minutes for this movie.`
+    }
+
+    const priceInPaise = parsePriceInPaise(form.priceInRupees)
+    if (priceInPaise === null) {
+      validationErrors.priceInRupees = 'Enter a non-negative amount with no more than two decimal places.'
+    } else if (priceInPaise > 10_000_000) {
+      validationErrors.priceInRupees = 'Ticket price cannot exceed ₹100,000 (10,000,000 paise).'
+    }
+
+    setErrors(validationErrors)
+    setApiError('')
+    setSuccessMessage('')
+    if (Object.keys(validationErrors).length) {
+      setStatus('idle')
+      return
+    }
+
+    submissionInFlight.current = true
+    setStatus('loading')
+    try {
+      const created = await createDashboardShowtime({
+        movieId: selectedMovie.id,
+        screenId: selectedScreen.id,
+        startsAt,
+        endsAt,
+        priceInPaise,
+      }, token)
+      const enrichedShowtime = {
+        ...created,
+        movieTitle: selectedMovie.title,
+        durationMinutes: selectedMovie.durationMinutes,
+        screenName: selectedScreen.name,
+        cinemaName: selectedScreen.cinemaName || '',
+      }
+      onCreated(enrichedShowtime)
+      setSuccessMessage(`Showtime for “${selectedMovie.title}” was created. Refreshing the list…`)
+      setForm({ movieId: '', screenId: '', startsAt: '', endsAt: '', priceInRupees: '' })
+      setStatus('success')
+    } catch (error) {
+      setApiError(error.message || 'Unable to create the showtime.')
+      setStatus('error')
+    } finally {
+      submissionInFlight.current = false
+    }
+  }
+
+  function retryMovieLoad() {
+    setMovieError('')
+    setMovieStatus('loading')
+    setMovieLoadAttempt((attempt) => attempt + 1)
+  }
+
+  return (
+    <form className="admin-movie-form" noValidate onSubmit={submitShowtime}>
+      <h3>Create Showtime</h3>
+      <p className="admin-form-intro">Choose a catalog movie and a screen created during this dashboard session. Screen options are not restored after reload.</p>
+      <div className="admin-form-grid">
+        <label className="admin-form-field admin-form-wide">
+          <span>Movie <span aria-hidden="true">*</span></span>
+          <select name="movieId" value={form.movieId} onChange={updateField} disabled={movieStatus !== 'success' || status === 'loading'} aria-invalid={Boolean(errors.movieId)}>
+            <option value="">Select a movie</option>
+            {movies.map((movie) => <option key={movie.id} value={movie.id}>{movie.title}</option>)}
+          </select>
+          {movieStatus === 'loading' && <small>Loading movies…</small>}
+          {movieStatus === 'error' && <small className="admin-field-error" role="alert">{movieError} <button className="admin-inline-retry" type="button" onClick={retryMovieLoad}>Retry</button></small>}
+          {movieStatus === 'success' && movies.length === 0 && <small>No movies are available. Add a movie before scheduling a showtime.</small>}
+          {errors.movieId && <small className="admin-field-error">{errors.movieId}</small>}
+        </label>
+        <label className="admin-form-field admin-form-wide">
+          <span>Screen <span aria-hidden="true">*</span></span>
+          <select name="screenId" value={form.screenId} onChange={updateField} disabled={!screens.length || status === 'loading'} aria-invalid={Boolean(errors.screenId)}>
+            <option value="">Select a screen created this session</option>
+            {screens.map((screen) => <option key={screen.id} value={screen.id}>{screen.name} — {screen.cinemaName || 'Cinema'}</option>)}
+          </select>
+          {!screens.length && <small>No eligible screen is available. Create a screen in this dashboard session; screen options are lost after reload.</small>}
+          {errors.screenId && <small className="admin-field-error">{errors.screenId}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Start date and time <span aria-hidden="true">*</span></span>
+          <input type="datetime-local" name="startsAt" value={form.startsAt} onChange={updateField} disabled={status === 'loading'} aria-invalid={Boolean(errors.startsAt)} />
+          <small>Entered in your local timezone; sent to the API as an ISO 8601 timestamp.</small>
+          {errors.startsAt && <small className="admin-field-error">{errors.startsAt}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>End date and time <span aria-hidden="true">*</span></span>
+          <input type="datetime-local" name="endsAt" value={form.endsAt} onChange={updateField} disabled={status === 'loading'} aria-invalid={Boolean(errors.endsAt)} />
+          {errors.endsAt && <small className="admin-field-error">{errors.endsAt}</small>}
+        </label>
+        <label className="admin-form-field">
+          <span>Ticket price (INR) <span aria-hidden="true">*</span></span>
+          <input type="text" inputMode="decimal" name="priceInRupees" value={form.priceInRupees} onChange={updateField} placeholder="e.g. 250.00" disabled={status === 'loading'} aria-invalid={Boolean(errors.priceInRupees)} />
+          {errors.priceInRupees && <small className="admin-field-error">{errors.priceInRupees}</small>}
+        </label>
+      </div>
+      {apiError && <p className="admin-form-error" role="alert">{apiError}</p>}
+      {successMessage && <p className="admin-form-success" role="status">{successMessage}</p>}
+      <button className="primary-button admin-submit-button" type="submit" disabled={status === 'loading' || movieStatus !== 'success' || movies.length === 0 || screens.length === 0}>
+        {status === 'loading' ? 'Creating showtime...' : 'Create Showtime'}
+      </button>
+    </form>
+  )
+}
+
+function AdminListSection({ title, description, loadItems, renderItem, token, showAddMovie = false, showAddCinema = false, showAddShowtime = false, screens = [] }) {
+  const [items, setItems] = useState([])
+  const [status, setStatus] = useState('loading')
+  const [error, setError] = useState('')
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [createdItem, setCreatedItem] = useState(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    loadItems({ signal: controller.signal })
+      .then((loadedItems) => {
+        setItems(createdItem && !loadedItems.some((item) => item.id === createdItem.id)
+          ? [createdItem, ...loadedItems]
+          : loadedItems)
+        setStatus('success')
+      })
+      .catch((loadError) => {
+        if (controller.signal.aborted) return
+        const createdLabel = createdItem?.name || createdItem?.title || createdItem?.movieTitle
+        const refreshMessage = createdItem
+          ? `${createdLabel ? `“${createdLabel}” was created, but ` : 'The item was created, but '}the ${title.toLowerCase()} list could not be refreshed.`
+          : ''
+        setError(refreshMessage ? `${refreshMessage} ${loadError.message || 'Please retry the list refresh.'}` : loadError.message || `Unable to load ${title.toLowerCase()}.`)
+        setStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [createdItem, loadAttempt, loadItems, title])
+
+  function retryLoading() {
+    setStatus('loading')
+    setError('')
+    setLoadAttempt((attempt) => attempt + 1)
+  }
+
+  function handleItemCreated(item) {
+    setCreatedItem(item)
+    setItems((current) => [item, ...current.filter((existing) => existing.id !== item.id)])
+    setStatus('loading')
+    setError('')
+    setLoadAttempt((attempt) => attempt + 1)
+  }
+
+  const renderedItems = items.length ? (
+    <ul className="admin-item-list">
+      {items.map((item) => (
+        <li className="admin-item" key={item.id}>
+          {renderItem(item)}
+        </li>
+      ))}
+    </ul>
+  ) : null
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-heading">
+        <div>
+          <span className="section-kicker">CATALOG</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        {status === 'success' && <span className="admin-count">{items.length} listed</span>}
+      </div>
+      {status === 'loading' ? (
+        <p className="admin-state" role="status">Loading {title.toLowerCase()}...</p>
+      ) : status === 'error' ? (
+        <>
+          <div className="admin-state" role="alert">
+            <p>{error}</p>
+            <button className="secondary-button" type="button" onClick={retryLoading}>Try again</button>
+          </div>
+          {renderedItems}
+        </>
+      ) : renderedItems ? (
+        renderedItems
+      ) : (
+        <p className="admin-state">No {title.toLowerCase()} are available.</p>
+      )}
+      {showAddMovie && <AddMovieForm token={token} onCreated={handleItemCreated} />}
+      {showAddCinema && <AddCinemaForm token={token} onCreated={handleItemCreated} />}
+      {showAddShowtime && <ShowtimeForm token={token} screens={screens} onCreated={handleItemCreated} />}
+      <p className="admin-capability">
+        {showAddMovie || showAddCinema || showAddShowtime
+          ? 'Edit and delete endpoints are not available.'
+          : 'Create endpoint exists; dashboard forms are not available. Edit and delete endpoints are not available.'}
+      </p>
+    </section>
+  )
+}
+
+function AdminDashboard({ authSession, onBack, onSignIn }) {
+  const [screensCreatedThisSession, setScreensCreatedThisSession] = useState([])
+
+  if (!authSession) {
+    return (
+      <main className="admin-page">
+        <button className="secondary-button back-button" type="button" onClick={onBack}>← Back to Movies</button>
+        <div className="empty-state" role="status">
+          <h1>Admin access required</h1>
+          <p>Sign in with an administrator account to open this dashboard.</p>
+          <button className="primary-button" type="button" onClick={onSignIn}>Sign in</button>
+        </div>
+      </main>
+    )
+  }
+
+  if (authSession.user?.role !== 'admin') {
+    return (
+      <main className="admin-page">
+        <button className="secondary-button back-button" type="button" onClick={onBack}>← Back to Movies</button>
+        <div className="empty-state" role="alert">
+          <h1>Admin access required</h1>
+          <p>This account does not have permission to view the dashboard.</p>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="admin-page">
+      <button className="secondary-button back-button" type="button" onClick={onBack}>← Back to Movies</button>
+      <header className="admin-page-heading">
+        <span className="section-kicker">CINEVO MANAGEMENT</span>
+        <h1>Admin Dashboard</h1>
+        <p>Catalog overview from the existing Cinevo APIs.</p>
+      </header>
+      <div className="admin-grid">
+        <AdminListSection
+          title="Movies"
+          description="Movie records currently in the catalog."
+          loadItems={getDashboardMovies}
+          token={authSession.token}
+          showAddMovie
+          renderItem={(movie) => (
+            <>
+              <strong>{movie.title}</strong>
+              <span>{[movie.language, movie.durationMinutes ? `${movie.durationMinutes} min` : ''].filter(Boolean).join(' · ') || 'Movie details unavailable'}</span>
+            </>
+          )}
+        />
+        <AdminListSection
+          title="Cinemas"
+          description="Cinema locations registered with Cinevo."
+          loadItems={getDashboardCinemas}
+          renderItem={(cinema) => (
+            <>
+              <strong>{cinema.name}</strong>
+              <span>{[cinema.city, cinema.state].filter(Boolean).join(', ') || cinema.address || 'Location details unavailable'}</span>
+            </>
+          )}
+          token={authSession.token}
+          showAddCinema
+        />
+        <ScreenManagementSection
+          token={authSession.token}
+          screensCreatedThisSession={screensCreatedThisSession}
+          setScreensCreatedThisSession={setScreensCreatedThisSession}
+        />
+        <AdminListSection
+          title="Showtimes"
+          description="Scheduled screenings returned by the existing list API."
+          loadItems={getDashboardShowtimes}
+          token={authSession.token}
+          screens={screensCreatedThisSession}
+          showAddShowtime
+          renderItem={(showtime) => (
+            <>
+              <strong>{showtime.movieTitle}</strong>
+              <span>{[showtime.cinemaName, showtime.screenName].filter(Boolean).join(' · ')}</span>
+              <span>{formatShowtimeDateTime(showtime.startsAt) || 'Start time unavailable'}</span>
+            </>
+          )}
+        />
+      </div>
+    </main>
+  )
 }
 
 function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onBack }) {
@@ -865,7 +1849,14 @@ function App() {
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [selectedMovieId, setSelectedMovieId] = useState(getMovieIdFromHash)
   const [isBookingsPage, setIsBookingsPage] = useState(() => window.location.hash === '#bookings')
+  const [isAdminPage, setIsAdminPage] = useState(() => window.location.hash === '#admin')
+  const [authMode, setAuthMode] = useState(getAuthModeFromHash)
   const [authSession, setAuthSession] = useState(null)
+  const authReturnHash = useRef(
+    window.location.hash !== '#signin' && window.location.hash !== '#register'
+      ? window.location.hash || '#movies'
+      : '#movies',
+  )
   const previousRouteHash = useRef(
     window.location.hash && window.location.hash !== '#bookings'
       ? window.location.hash
@@ -876,6 +1867,8 @@ function App() {
     const syncRoute = () => {
       setSelectedMovieId(getMovieIdFromHash())
       setIsBookingsPage(window.location.hash === '#bookings')
+      setIsAdminPage(window.location.hash === '#admin')
+      setAuthMode(getAuthModeFromHash())
     }
     window.addEventListener('hashchange', syncRoute)
     window.addEventListener('popstate', syncRoute)
@@ -936,6 +1929,7 @@ function App() {
     )
     setSelectedMovieId(movieId)
     setIsBookingsPage(false)
+    setIsAdminPage(false)
     window.scrollTo(0, 0)
   }
 
@@ -943,10 +1937,13 @@ function App() {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#movies`)
     setSelectedMovieId(null)
     setIsBookingsPage(false)
+    setIsAdminPage(false)
     requestAnimationFrame(() => document.getElementById('movies')?.scrollIntoView())
   }
 
   function openBookings() {
+    setAuthMode(null)
+    setIsAdminPage(false)
     if (window.location.hash !== '#bookings') {
       previousRouteHash.current = window.location.hash || '#movies'
       window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#bookings`)
@@ -959,7 +1956,51 @@ function App() {
     const previousHash = previousRouteHash.current || '#movies'
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${previousHash}`)
     setIsBookingsPage(false)
+    setIsAdminPage(false)
     setSelectedMovieId(getMovieIdFromHash())
+    window.scrollTo(0, 0)
+  }
+
+  function openAuth(mode) {
+    if (window.location.hash !== '#signin' && window.location.hash !== '#register') {
+      authReturnHash.current = window.location.hash || '#movies'
+    }
+    const authHash = mode === 'register' ? '#register' : '#signin'
+    window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${authHash}`)
+    setAuthMode(mode)
+    setIsBookingsPage(false)
+    window.scrollTo(0, 0)
+  }
+
+  function backFromAuth() {
+    const returnHash = authReturnHash.current || '#movies'
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${returnHash}`)
+    setAuthMode(null)
+    setIsBookingsPage(returnHash === '#bookings')
+    setIsAdminPage(returnHash === '#admin')
+    setSelectedMovieId(getMovieIdFromHash())
+    window.scrollTo(0, 0)
+  }
+
+  function completeAuthentication(session) {
+    setAuthSession(session)
+    const returnHash = authReturnHash.current || '#movies'
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${returnHash}`)
+    setAuthMode(null)
+    setIsBookingsPage(returnHash === '#bookings')
+    setIsAdminPage(returnHash === '#admin')
+    setSelectedMovieId(getMovieIdFromHash())
+    window.scrollTo(0, 0)
+  }
+
+  function logout() {
+    setAuthSession(null)
+    authReturnHash.current = '#movies'
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#movies`)
+    setAuthMode(null)
+    setIsBookingsPage(false)
+    setIsAdminPage(false)
+    setSelectedMovieId(null)
     window.scrollTo(0, 0)
   }
 
@@ -975,18 +2016,45 @@ function App() {
           <a className="nav-active" href="#home">Home</a>
           <a href="#movies">Explore movies</a>
           <a href="#bookings" onClick={(event) => { event.preventDefault(); openBookings() }}>My Bookings</a>
+          {authSession?.user?.role === 'admin' && (
+            <a href="#admin" onClick={(event) => {
+              event.preventDefault()
+              window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#admin`)
+              setIsAdminPage(true)
+              setIsBookingsPage(false)
+              setSelectedMovieId(null)
+              window.scrollTo(0, 0)
+            }}>Admin Dashboard</a>
+          )}
           <a href="#about">About</a>
         </nav>
 
-        <a className="signin-button" href="#movies">Discover films <span>↗</span></a>
+        {authSession ? (
+          <button className="signin-button" type="button" onClick={logout}>Sign out</button>
+        ) : (
+          <button className="signin-button" type="button" onClick={() => openAuth('login')}>Sign in</button>
+        )}
       </header>
 
-      {isBookingsPage ? (
+      {authMode ? (
+        <AuthPage
+          mode={authMode}
+          onAuthenticated={completeAuthentication}
+          onModeChange={openAuth}
+          onBack={backFromAuth}
+        />
+      ) : isBookingsPage ? (
         <MyBookings
           authSession={authSession}
           onAuthenticated={setAuthSession}
           onAuthenticationExpired={clearAuthentication}
           onBack={backFromBookings}
+        />
+      ) : isAdminPage ? (
+        <AdminDashboard
+          authSession={authSession}
+          onBack={backToMovies}
+          onSignIn={() => openAuth('login')}
         />
       ) : selectedMovieId ? (
         <MovieDetails

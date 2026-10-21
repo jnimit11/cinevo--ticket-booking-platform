@@ -33,6 +33,135 @@ export async function getMovies({ signal } = {}) {
   return data.movies;
 }
 
+async function getAllPages(path, collectionKey, { signal, query = {} } = {}) {
+  const params = new URLSearchParams({ ...query, limit: "50" });
+  const items = [];
+  let page = 1;
+  let totalPages;
+
+  do {
+    params.set("page", String(page));
+    const data = await fetchJson(`${path}?${params}`, signal);
+
+    if (!Array.isArray(data?.[collectionKey])) {
+      const listName = collectionKey === "showtimes" ? "showtime list" : "list";
+      throw new Error(`The ${collectionKey} API returned an invalid ${listName}.`);
+    }
+
+    if (!Number.isInteger(data.pagination?.totalPages) || data.pagination.totalPages < 0) {
+      throw new Error(`The ${collectionKey} API returned invalid pagination data.`);
+    }
+
+    totalPages = data.pagination.totalPages;
+    items.push(...data[collectionKey]);
+    page += 1;
+  } while (page <= totalPages);
+
+  return items;
+}
+
+export function getDashboardMovies(options) {
+  return getAllPages("/movies", "movies", options);
+}
+
+export function getDashboardCinemas(options) {
+  return getAllPages("/cinemas", "cinemas", options);
+}
+
+export function getDashboardShowtimes(options) {
+  return getAllPages("/showtimes", "showtimes", options);
+}
+
+export async function createDashboardMovie(movie, token) {
+  const data = await postJson("/movies", movie, { token });
+
+  if (
+    !data?.movie ||
+    typeof data.movie !== "object" ||
+    Array.isArray(data.movie) ||
+    typeof data.movie.id !== "string" ||
+    typeof data.movie.title !== "string"
+  ) {
+    throw new Error("The movie API returned an invalid creation confirmation.");
+  }
+
+  return data.movie;
+}
+
+export async function createDashboardCinema(cinema, token) {
+  const data = await postJson("/cinemas", cinema, { token });
+
+  if (
+    !data?.cinema ||
+    typeof data.cinema !== "object" ||
+    Array.isArray(data.cinema) ||
+    typeof data.cinema.id !== "string" ||
+    typeof data.cinema.name !== "string"
+  ) {
+    throw new Error("The cinema API returned an invalid creation confirmation.");
+  }
+
+  return data.cinema;
+}
+
+export async function createDashboardScreen(screen, token) {
+  const data = await postJson("/screens", screen, { token });
+
+  if (
+    !data?.screen ||
+    typeof data.screen !== "object" ||
+    Array.isArray(data.screen) ||
+    typeof data.screen.id !== "string" ||
+    typeof data.screen.name !== "string"
+  ) {
+    throw new Error("The screen API returned an invalid creation confirmation.");
+  }
+
+  return data.screen;
+}
+
+export async function generateDashboardSeats(screenId, seatLayout, token) {
+  const data = await postJson(
+    `/screens/${encodeURIComponent(screenId)}/seats/generate`,
+    seatLayout,
+    { token },
+  );
+
+  if (
+    data?.screenId !== screenId ||
+    !Array.isArray(data.seats) ||
+    !Number.isInteger(data.totalSeats) ||
+    data.totalSeats !== data.seats.length
+  ) {
+    throw new Error("The seat generation API returned an invalid confirmation.");
+  }
+
+  return data;
+}
+
+export async function createDashboardShowtime(showtime, token) {
+  const data = await postJson("/showtimes", showtime, { token });
+
+  if (
+    !data?.showtime ||
+    typeof data.showtime !== "object" ||
+    Array.isArray(data.showtime) ||
+    typeof data.showtime.id !== "string" ||
+    data.showtime.movieId !== showtime.movieId ||
+    data.showtime.screenId !== showtime.screenId ||
+    typeof data.showtime.startsAt !== "string" ||
+    Number.isNaN(Date.parse(data.showtime.startsAt)) ||
+    typeof data.showtime.endsAt !== "string" ||
+    Number.isNaN(Date.parse(data.showtime.endsAt)) ||
+    !Number.isInteger(data.showtime.priceInPaise) ||
+    data.showtime.priceInPaise < 0
+  ) {
+    throw new Error("The showtime API returned an invalid creation confirmation.");
+  }
+
+  return data.showtime;
+}
+
 export async function getMovieById(id, { signal } = {}) {
   const data = await fetchJson(`/movies/${encodeURIComponent(id)}`, signal);
 
@@ -44,29 +173,7 @@ export async function getMovieById(id, { signal } = {}) {
 }
 
 export async function getShowtimesByMovieId(movieId, { signal } = {}) {
-  const params = new URLSearchParams({ movieId, limit: "50" });
-  let page = 1;
-  const showtimes = [];
-  let totalPages;
-
-  do {
-    params.set("page", String(page));
-    const data = await fetchJson(`/showtimes?${params}`, signal);
-
-    if (!Array.isArray(data?.showtimes)) {
-      throw new Error("The showtimes API returned an invalid showtime list.");
-    }
-
-    if (!Number.isInteger(data.pagination?.totalPages) || data.pagination.totalPages < 0) {
-      throw new Error("The showtimes API returned invalid pagination data.");
-    }
-
-    totalPages = data.pagination.totalPages;
-    showtimes.push(...data.showtimes);
-    page += 1;
-  } while (page <= totalPages);
-
-  return showtimes;
+  return getAllPages("/showtimes", "showtimes", { signal, query: { movieId } });
 }
 
 export async function getSeatsForShowtime(showtimeId, { signal } = {}) {
