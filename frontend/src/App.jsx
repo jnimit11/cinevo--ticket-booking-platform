@@ -1839,9 +1839,34 @@ function MovieDetails({
   )
 }
 
+const CATALOGUE_PAGE_LIMIT = 12
+const KNOWN_LANGUAGES = [
+  'English',
+  'Hindi',
+  'Tamil',
+  'Telugu',
+  'Malayalam',
+  'Kannada',
+  'Bengali',
+  'Marathi',
+  'Spanish',
+  'French',
+  'Japanese',
+  'Korean',
+]
+
 function App() {
   const [movies, setMovies] = useState([])
-  const [search, setSearch] = useState('')
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: CATALOGUE_PAGE_LIMIT,
+    total: 0,
+    totalPages: 1,
+  })
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [selectedLanguage, setSelectedLanguage] = useState('')
+  const [page, setPage] = useState(1)
   const [savedMovies, setSavedMovies] = useState([])
   const [notice, setNotice] = useState('')
   const [loadStatus, setLoadStatus] = useState('loading')
@@ -1880,11 +1905,25 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim())
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
     const controller = new AbortController()
 
-    getMovies({ signal: controller.signal })
-      .then((loadedMovies) => {
-        setMovies(loadedMovies)
+    getMovies({
+      page,
+      limit: CATALOGUE_PAGE_LIMIT,
+      search: debouncedSearch,
+      language: selectedLanguage,
+      signal: controller.signal,
+    })
+      .then((data) => {
+        setMovies(data.movies)
+        setPagination(data.pagination)
         setLoadStatus('success')
       })
       .catch((error) => {
@@ -1894,12 +1933,29 @@ function App() {
       })
 
     return () => controller.abort()
-  }, [loadAttempt])
+  }, [debouncedSearch, selectedLanguage, page, loadAttempt])
 
-  const filteredMovies = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return movies.filter((movie) => movie.title.toLowerCase().includes(query))
-  }, [movies, search])
+  const languageOptions = useMemo(() => {
+    const set = new Set(KNOWN_LANGUAGES)
+    movies.forEach((movie) => {
+      if (movie.language && movie.language.trim()) {
+        set.add(movie.language.trim())
+      }
+    })
+    return Array.from(set).sort()
+  }, [movies])
+
+  function handleSearchChange(event) {
+    setSearchInput(event.target.value)
+    setPage(1)
+    setLoadStatus('loading')
+  }
+
+  function handleLanguageChange(event) {
+    setSelectedLanguage(event.target.value)
+    setPage(1)
+    setLoadStatus('loading')
+  }
 
   function toggleSaved(id) {
     setSavedMovies((current) =>
@@ -1918,7 +1974,11 @@ function App() {
   }
 
   function clearSearch() {
-    setSearch('')
+    setSearchInput('')
+    setDebouncedSearch('')
+    setSelectedLanguage('')
+    setPage(1)
+    setLoadStatus('loading')
   }
 
   function openMovie(movieId) {
@@ -2108,14 +2168,47 @@ function App() {
         <section className="movies-section" id="movies">
           <div className="section-heading">
             <div><span className="section-kicker">HANDPICKED FOR YOUR NEXT NIGHT OUT</span><h2>Find your <span>next favourite.</span></h2></div>
-            <span className="movie-count">{filteredMovies.length.toString().padStart(2, '0')} FILMS</span>
+            <span className="movie-count">{(pagination.total ?? movies.length).toString().padStart(2, '0')} FILMS</span>
           </div>
 
           <div className="movie-toolbar">
             <label className="search-box">
               <span>⌕</span>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search movies..." aria-label="Search movies" />
-              {search && <button onClick={() => setSearch('')} aria-label="Clear search">×</button>}
+              <input
+                value={searchInput}
+                onChange={handleSearchChange}
+                placeholder="Search movies..."
+                aria-label="Search movies"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('')
+                    setDebouncedSearch('')
+                    setPage(1)
+                  }}
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </label>
+
+            <label className="language-filter">
+              <span className="language-filter-label">Language</span>
+              <select
+                value={selectedLanguage}
+                onChange={handleLanguageChange}
+                aria-label="Filter by language"
+              >
+                <option value="">All languages</option>
+                {languageOptions.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -2125,40 +2218,87 @@ function App() {
             <div className="empty-state" role="alert">
               <h3>We couldn’t load the films</h3>
               <p>{loadError}</p>
-              <button className="secondary-button" onClick={retryLoading}>Try again</button>
+              <button className="secondary-button" type="button" onClick={retryLoading}>Try again</button>
             </div>
           ) : movies.length === 0 ? (
-            <div className="empty-state"><h3>No movies available</h3><p>There are no films to show right now. Please check back soon.</p></div>
-          ) : filteredMovies.length ? (
-            <div className={filteredMovies.length === 1 ? 'movie-grid single-result' : 'movie-grid'}>
-              {filteredMovies.map((movie, index) => (
-                <article className="movie-card" key={movie.id}>
-                  <MoviePoster
-                    movie={movie}
-                    index={index}
-                    isSaved={savedMovies.includes(movie.id)}
-                    onToggleSaved={() => toggleSaved(movie.id)}
-                  />
-                  <div className="movie-info">
-                    <div className="movie-title-row"><h3>{movie.title}</h3></div>
-                    <p>
-                      {[getReleaseYear(movie.releaseDate), formatDuration(movie.durationMinutes), movie.language]
-                        .filter(Boolean)
-                        .map((detail, detailIndex) => (
-                          <span key={`${movie.id}-${detailIndex}`}>
-                            {detailIndex > 0 && <span className="metadata-separator"> · </span>}
-                            {detail}
-                          </span>
-                        ))}
-                    </p>
-                    {movie.description && <p className="movie-description">{movie.description}</p>}
-                    <button className="book-button" onClick={() => openMovie(movie.id)}>View movie <span>↗</span></button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            debouncedSearch || selectedLanguage ? (
+              <div className="empty-state" role="status">
+                <span>⌕</span>
+                <h3>No films found</h3>
+                <p>Try adjusting your search or language filter.</p>
+                <button className="secondary-button" type="button" onClick={clearSearch}>Clear search</button>
+              </div>
+            ) : (
+              <div className="empty-state" role="status">
+                <h3>No movies available</h3>
+                <p>There are no films to show right now. Please check back soon.</p>
+              </div>
+            )
           ) : (
-            <div className="empty-state"><span>⌕</span><h3>No films found</h3><p>Try another title.</p><button className="secondary-button" onClick={clearSearch}>Clear search</button></div>
+            <>
+              <div className={movies.length === 1 ? 'movie-grid single-result' : 'movie-grid'}>
+                {movies.map((movie, index) => {
+                  const posterNumber = (page - 1) * CATALOGUE_PAGE_LIMIT + index
+                  return (
+                    <article className="movie-card" key={movie.id}>
+                      <MoviePoster
+                        movie={movie}
+                        index={posterNumber}
+                        isSaved={savedMovies.includes(movie.id)}
+                        onToggleSaved={() => toggleSaved(movie.id)}
+                      />
+                      <div className="movie-info">
+                        <div className="movie-title-row"><h3>{movie.title}</h3></div>
+                        <p>
+                          {[getReleaseYear(movie.releaseDate), formatDuration(movie.durationMinutes), movie.language]
+                            .filter(Boolean)
+                            .map((detail, detailIndex) => (
+                              <span key={`${movie.id}-${detailIndex}`}>
+                                {detailIndex > 0 && <span className="metadata-separator"> · </span>}
+                                {detail}
+                              </span>
+                            ))}
+                        </p>
+                        {movie.description && <p className="movie-description">{movie.description}</p>}
+                        <button className="book-button" type="button" onClick={() => openMovie(movie.id)}>View movie <span>↗</span></button>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+
+              <nav className="catalogue-pagination" aria-label="Movie catalogue pagination">
+                <button
+                  className="pagination-button"
+                  type="button"
+                  disabled={page <= 1 || loadStatus === 'loading'}
+                  onClick={() => {
+                    setLoadStatus('loading')
+                    setPage((p) => Math.max(1, p - 1))
+                    document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  aria-label="Previous page"
+                >
+                  ← Previous
+                </button>
+                <span className="pagination-status" aria-live="polite">
+                  Page <strong>{page}</strong> of <strong>{pagination.totalPages || 1}</strong>
+                </span>
+                <button
+                  className="pagination-button"
+                  type="button"
+                  disabled={page >= pagination.totalPages || loadStatus === 'loading' || pagination.totalPages <= 1}
+                  onClick={() => {
+                    setLoadStatus('loading')
+                    setPage((p) => Math.min(pagination.totalPages, p + 1))
+                    document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  aria-label="Next page"
+                >
+                  Next →
+                </button>
+              </nav>
+            </>
           )}
           {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notice">×</button></div>}
         </section>

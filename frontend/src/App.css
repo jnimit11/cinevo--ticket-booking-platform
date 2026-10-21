@@ -250,6 +250,36 @@
 .search-box input::placeholder { color: #76727c; }
 .search-box button, .notice button { background: transparent; border: 0; color: white; font-size: 20px; }
 
+.language-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #302e34;
+  border-radius: 7px;
+  background: #141316;
+  padding: 0 12px;
+}
+.language-filter-label {
+  color: #8b8790;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.language-filter select {
+  padding: 12px 0;
+  background: transparent;
+  color: white;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.language-filter select option {
+  background: #141316;
+  color: white;
+}
+
 .movie-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 20px; }
 .movie-grid.single-result { grid-template-columns: minmax(0, 380px); }
 
@@ -271,8 +301,56 @@
 .movie-info p { margin: 9px 0 16px; color: #93909a; font-size: 10px; }
 .movie-info p span { padding: 0 4px; color: #5e5b64; }
 .movie-info p.movie-description { margin-top: -8px; line-height: 1.5; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.book-button { width: 100%; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #333038; border-radius: 5px; background: #1a191d; color: #efedf1; font-size: 11px; font-weight: 600; }
 .book-button:hover { background: #262126; border-color: #6d3b42; }
+
+.catalogue-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid #1c1b20;
+}
+.pagination-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid #333038;
+  border-radius: 6px;
+  background: #161519;
+  color: #efedf1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  transition: background .2s, border-color .2s, transform .2s;
+  cursor: pointer;
+}
+.pagination-button:hover:not(:disabled) {
+  background: #232025;
+  border-color: #ff4b4b;
+  transform: translateY(-1px);
+}
+.pagination-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  border-color: #242228;
+  background: #111114;
+  color: #716e78;
+}
+.pagination-status {
+  color: #8b8790;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.pagination-status strong {
+  color: #f4f1ed;
+  font-weight: 700;
+}
 
 .movie-detail-page { max-width: 1440px; min-height: 650px; margin: auto; padding: 55px 7% 85px; }
 .back-button { gap: 10px; }
@@ -502,6 +580,10 @@
   .section-kicker { font-size: 8px; letter-spacing: 1.2px; }
   .movie-toolbar { align-items: stretch; }
   .search-box { width: 100%; }
+  .language-filter { width: 100%; justify-content: space-between; }
+  .catalogue-pagination { gap: 12px; }
+  .pagination-button { padding: 9px 14px; font-size: 10px; }
+  .pagination-status { font-size: 11px; }
   .genre-list { gap: 6px; }
   .genre-chip { padding: 8px 10px; }
   .movie-grid { gap: 13px; }
