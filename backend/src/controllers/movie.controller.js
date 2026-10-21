@@ -6,8 +6,9 @@ import {
   listMoviesQuerySchema,
   movieIdSchema,
 } from "../validators/movie.validator.js";
-import { success } from "zod";
-import { fa } from "zod/v4/locales";
+import { escapeLikePattern } from "../utils/like.js";
+
+export { escapeLikePattern };
 
 export async function getMovies(req, res, next) {
   try {
@@ -27,7 +28,7 @@ export async function getMovies(req, res, next) {
     const conditions = [];
 
     if (search) {
-      conditions.push(ilike(movies.title, `%${search}%`));
+      conditions.push(ilike(movies.title, `%${escapeLikePattern(search)}%`));
     }
 
     if (language) {
