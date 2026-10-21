@@ -4,6 +4,7 @@ import { movies } from "../db/schema/index.js";
 import {
   createMovieSchema,
   listMoviesQuerySchema,
+  movieIdSchema,
 } from "../validators/movie.validator.js";
 import { success } from "zod";
 import { fa } from "zod/v4/locales";
@@ -103,10 +104,19 @@ export async function createMovie(req, res, next) {
 
 export async function getMovieById(req, res, next) {
   try {
+    const validation = movieIdSchema.safeParse(req.params.id);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie ID",
+      });
+    }
+
     const [movie] = await db
       .select()
       .from(movies)
-      .where(eq(movies.id, req.params.id))
+      .where(eq(movies.id, validation.data))
       .limit(1);
 
     if (!movie) {

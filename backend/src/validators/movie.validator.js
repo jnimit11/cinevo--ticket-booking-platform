@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const movieIdSchema = z.uuid();
+
 export const createMovieSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().optional(),
