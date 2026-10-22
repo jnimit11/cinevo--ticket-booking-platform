@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildMovieQuery, getMovies } from '../src/lib/api.js'
+import { API_BASE_URL, buildMovieQuery, getMovies, resolveApiBaseUrl } from '../src/lib/api.js'
 
 describe('Movie Catalogue & Query Construction', () => {
   describe('buildMovieQuery', () => {
@@ -237,6 +237,58 @@ describe('Movie Catalogue & Query Construction', () => {
       }
       onLanguageChange()
       assert.equal(currentPage, 1)
+    })
+  })
+
+  describe('API Base URL Configuration', () => {
+    it('appends /api exactly once when given a backend origin without /api', () => {
+      const url = resolveApiBaseUrl({
+        VITE_API_URL: 'https://cinevo-ticket-booking-platform.onrender.com',
+      })
+      assert.equal(url, 'https://cinevo-ticket-booking-platform.onrender.com/api')
+    })
+
+    it('normalizes trailing slashes and appends /api', () => {
+      const url = resolveApiBaseUrl({
+        VITE_API_URL: 'https://cinevo-ticket-booking-platform.onrender.com/',
+      })
+      assert.equal(url, 'https://cinevo-ticket-booking-platform.onrender.com/api')
+    })
+
+    it('does not duplicate /api when already present in VITE_API_URL', () => {
+      const url1 = resolveApiBaseUrl({
+        VITE_API_URL: 'https://cinevo-ticket-booking-platform.onrender.com/api',
+      })
+      assert.equal(url1, 'https://cinevo-ticket-booking-platform.onrender.com/api')
+
+      const url2 = resolveApiBaseUrl({
+        VITE_API_URL: 'https://cinevo-ticket-booking-platform.onrender.com/api/',
+      })
+      assert.equal(url2, 'https://cinevo-ticket-booking-platform.onrender.com/api')
+    })
+
+    it('supports VITE_API_BASE_URL compatibility', () => {
+      const url = resolveApiBaseUrl({
+        VITE_API_BASE_URL: 'https://custom-backend.example.com',
+      })
+      assert.equal(url, 'https://custom-backend.example.com/api')
+    })
+
+    it('falls back to localhost:5000/api in development or test environments', () => {
+      const urlDev = resolveApiBaseUrl({ DEV: true })
+      assert.equal(urlDev, 'http://localhost:5000/api')
+
+      const urlEmpty = resolveApiBaseUrl({})
+      assert.equal(urlEmpty, 'http://localhost:5000/api')
+
+      assert.equal(API_BASE_URL, 'http://localhost:5000/api')
+    })
+
+    it('throws in production mode if VITE_API_URL is missing', () => {
+      assert.throws(
+        () => resolveApiBaseUrl({ PROD: true }),
+        /Missing VITE_API_URL environment variable/,
+      )
     })
   })
 })
