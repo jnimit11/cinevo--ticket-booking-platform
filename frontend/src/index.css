@@ -1,7 +1,142 @@
 
 @import "tailwindcss";
 
+@theme {
+  --color-surface: #131319;
+  --color-surface-dim: #131319;
+  --color-surface-bright: #39383f;
+  --color-surface-container-lowest: #0e0e13;
+  --color-surface-container-low: #1b1b21;
+  --color-surface-container: #1f1f25;
+  --color-surface-container-high: #2a2930;
+  --color-surface-container-highest: #34343b;
+  --color-on-surface: #e4e1ea;
+  --color-on-surface-variant: #e0bfbf;
+  --color-inverse-surface: #e4e1ea;
+  --color-inverse-on-surface: #303036;
+  --color-outline: #a8898a;
+  --color-outline-variant: #594141;
+  --color-surface-tint: #ffb3b6;
+  --color-primary: #ffb3b6;
+  --color-on-primary: #680019;
+  --color-primary-container: #c93b4e;
+  --color-on-primary-container: #fff2f1;
+  --color-inverse-primary: #b1293e;
+  --color-secondary: #ffb3b4;
+  --color-on-secondary: #680017;
+  --color-secondary-container: #90172a;
+  --color-on-secondary-container: #ff9da1;
+  --color-tertiary: #e9c349;
+  --color-on-tertiary: #3c2f00;
+  --color-tertiary-container: #cba72f;
+  --color-on-tertiary-container: #4e3d00;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-primary-fixed: #ffdada;
+  --color-primary-fixed-dim: #ffb3b6;
+  --color-on-primary-fixed: #40000c;
+  --color-on-primary-fixed-variant: #8f0a29;
+  --color-secondary-fixed: #ffdada;
+  --color-secondary-fixed-dim: #ffb3b4;
+  --color-on-secondary-fixed: #40000b;
+  --color-on-secondary-fixed-variant: #8c1428;
+  --color-tertiary-fixed: #ffe088;
+  --color-tertiary-fixed-dim: #e9c349;
+  --color-on-tertiary-fixed: #241a00;
+  --color-on-tertiary-fixed-variant: #574500;
+  --color-background: #131319;
+  --color-on-background: #e4e1ea;
+  --color-surface-variant: #34343b;
+
+  --font-syne: 'Syne', sans-serif;
+  --font-hanken: 'Hanken Grotesk', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --font-headline: 'Syne', sans-serif;
+  --font-body: 'Hanken Grotesk', sans-serif;
+  --font-label: 'Hanken Grotesk', sans-serif;
+
+  --font-display-lg: 'Syne', sans-serif;
+  --font-display-lg-mobile: 'Syne', sans-serif;
+  --font-display-md: 'Syne', sans-serif;
+  --font-display-md-mobile: 'Syne', sans-serif;
+  --font-headline-lg: 'Syne', sans-serif;
+  --font-headline-lg-mobile: 'Syne', sans-serif;
+  --font-headline-md: 'Syne', sans-serif;
+  --font-headline-sm: 'Hanken Grotesk', sans-serif;
+  --font-body-lg: 'Hanken Grotesk', sans-serif;
+  --font-body-md: 'Hanken Grotesk', sans-serif;
+  --font-body-sm: 'Hanken Grotesk', sans-serif;
+  --font-label-lg: 'Hanken Grotesk', sans-serif;
+  --font-label-md: 'Hanken Grotesk', sans-serif;
+  --font-label-sm: 'Hanken Grotesk', sans-serif;
+
+  --spacing-gutter: 1.5rem;
+  --spacing-gutter-mobile: 1rem;
+  --spacing-margin: 3rem;
+  --spacing-margin-mobile: 1.25rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+}
+
 :root {
+  /* Stitch Design Tokens */
+  --surface: #131319;
+  --surface-dim: #131319;
+  --surface-bright: #39383f;
+  --surface-container-lowest: #0e0e13;
+  --surface-container-low: #1b1b21;
+  --surface-container: #1f1f25;
+  --surface-container-high: #2a2930;
+  --surface-container-highest: #34343b;
+  --on-surface: #e4e1ea;
+  --on-surface-variant: #e0bfbf;
+  --inverse-surface: #e4e1ea;
+  --inverse-on-surface: #303036;
+  --outline: #a8898a;
+  --outline-variant: #594141;
+  --surface-tint: #ffb3b6;
+  --primary: #ffb3b6;
+  --on-primary: #680019;
+  --primary-container: #c93b4e;
+  --on-primary-container: #fff2f1;
+  --inverse-primary: #b1293e;
+  --secondary: #ffb3b4;
+  --on-secondary: #680017;
+  --secondary-container: #90172a;
+  --on-secondary-container: #ff9da1;
+  --tertiary: #e9c349;
+  --on-tertiary: #3c2f00;
+  --tertiary-container: #cba72f;
+  --on-tertiary-container: #4e3d00;
+  --error: #ffb4ab;
+  --on-error: #690005;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
+  --primary-fixed: #ffdada;
+  --primary-fixed-dim: #ffb3b6;
+  --on-primary-fixed: #40000c;
+  --on-primary-fixed-variant: #8f0a29;
+  --secondary-fixed: #ffdada;
+  --secondary-fixed-dim: #ffb3b4;
+  --on-secondary-fixed: #40000b;
+  --on-secondary-fixed-variant: #8c1428;
+  --tertiary-fixed: #ffe088;
+  --tertiary-fixed-dim: #e9c349;
+  --on-tertiary-fixed: #241a00;
+  --on-tertiary-fixed-variant: #574500;
+  --background: #131319;
+  --on-background: #e4e1ea;
+  --surface-variant: #34343b;
+
+  --font-syne: 'Syne', sans-serif;
+  --font-hanken: 'Hanken Grotesk', sans-serif;
+
+  /* Existing global properties preserved */
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f5f5f5;
   background: #09090b;
@@ -10,6 +145,37 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Stitch Typography Scale Helpers */
+.font-display-lg { font-family: 'Syne', sans-serif; }
+.font-display-lg-mobile { font-family: 'Syne', sans-serif; }
+.font-display-md { font-family: 'Syne', sans-serif; }
+.font-display-md-mobile { font-family: 'Syne', sans-serif; }
+.font-headline-lg { font-family: 'Syne', sans-serif; }
+.font-headline-lg-mobile { font-family: 'Syne', sans-serif; }
+.font-headline-md { font-family: 'Syne', sans-serif; }
+.font-headline-sm { font-family: 'Hanken Grotesk', sans-serif; }
+.font-body-lg { font-family: 'Hanken Grotesk', sans-serif; }
+.font-body-md { font-family: 'Hanken Grotesk', sans-serif; }
+.font-body-sm { font-family: 'Hanken Grotesk', sans-serif; }
+.font-label-lg { font-family: 'Hanken Grotesk', sans-serif; }
+.font-label-md { font-family: 'Hanken Grotesk', sans-serif; }
+.font-label-sm { font-family: 'Hanken Grotesk', sans-serif; }
+
+.text-display-lg { font-size: 56px; line-height: 64px; letter-spacing: -0.03em; font-weight: 700; }
+.text-display-lg-mobile { font-size: 38px; line-height: 44px; letter-spacing: -0.02em; font-weight: 700; }
+.text-display-md { font-size: 44px; line-height: 52px; letter-spacing: -0.025em; font-weight: 700; }
+.text-display-md-mobile { font-size: 32px; line-height: 38px; letter-spacing: -0.02em; font-weight: 700; }
+.text-headline-lg { font-size: 32px; line-height: 40px; letter-spacing: -0.02em; font-weight: 600; }
+.text-headline-lg-mobile { font-size: 26px; line-height: 32px; letter-spacing: -0.015em; font-weight: 600; }
+.text-headline-md { font-size: 24px; line-height: 30px; letter-spacing: -0.015em; font-weight: 600; }
+.text-headline-sm { font-size: 20px; line-height: 26px; letter-spacing: -0.01em; font-weight: 600; }
+.text-body-lg { font-size: 18px; line-height: 28px; letter-spacing: -0.005em; font-weight: 400; }
+.text-body-md { font-size: 15px; line-height: 22px; letter-spacing: 0em; font-weight: 400; }
+.text-body-sm { font-size: 13px; line-height: 18px; letter-spacing: 0.01em; font-weight: 400; }
+.text-label-lg { font-size: 14px; line-height: 18px; letter-spacing: 0.02em; font-weight: 600; }
+.text-label-md { font-size: 12px; line-height: 16px; letter-spacing: 0.04em; font-weight: 500; }
+.text-label-sm { font-size: 10px; line-height: 14px; letter-spacing: 0.08em; font-weight: 600; }
 
 * {
   box-sizing: border-box;

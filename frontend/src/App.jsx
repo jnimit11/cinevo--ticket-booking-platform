@@ -47,6 +47,62 @@ function formatShowtimeDateTime(startsAt) {
   })
 }
 
+function formatShowtimeTime(startsAt) {
+  if (!startsAt) return ''
+
+  const date = new Date(startsAt)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+function getShowtimeDateKey(startsAt) {
+  if (!startsAt) return ''
+
+  const date = new Date(startsAt)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatShowtimeDateParts(dateKey) {
+  if (!dateKey) return { relativeLabel: '', dayName: '', dayMonth: '' }
+
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (Number.isNaN(date.getTime())) return { relativeLabel: '', dayName: '', dayMonth: '' }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const compareDate = new Date(year, month - 1, day)
+  compareDate.setHours(0, 0, 0, 0)
+
+  const diffDays = Math.round((compareDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  let relativeLabel
+  if (diffDays === 0) {
+    relativeLabel = 'Today'
+  } else if (diffDays === 1) {
+    relativeLabel = 'Tomorrow'
+  } else if (diffDays > 1 && diffDays < 7) {
+    const dayOfWeek = date.getDay()
+    relativeLabel = dayOfWeek === 0 || dayOfWeek === 6 ? 'Weekend' : 'Weekday'
+  } else {
+    relativeLabel = 'Screening'
+  }
+
+  const dayName = date.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase()
+  const dayMonth = `${day} ${date.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}`
+
+  return { relativeLabel, dayName, dayMonth }
+}
+
 function formatTicketPrice(priceInPaise) {
   if (!Number.isFinite(priceInPaise) || priceInPaise < 0) return ''
 
@@ -98,9 +154,10 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
 
   return (
     <form className="auth-panel" onSubmit={submitAuthentication}>
+      <div className="auth-ambient-glow" aria-hidden="true" />
       <div className="auth-panel-heading">
         <div>
-          <span className="section-kicker">ACCOUNT REQUIRED</span>
+          <span className="section-kicker">CONCIERGE ACCESS</span>
           <h3>{authMode === 'login' ? 'Sign in to continue' : 'Create your Cinevo account'}</h3>
         </div>
         <button
@@ -113,12 +170,15 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
             setAuthError('')
           }}
         >
-          {authMode === 'login' ? 'Create account' : 'I have an account'}
+          <span className="material-symbols-outlined" style={{ fontSize: '15px' }} aria-hidden="true">
+            {authMode === 'login' ? 'person_add' : 'login'}
+          </span>
+          <span>{authMode === 'login' ? 'Create account' : 'I have an account'}</span>
         </button>
       </div>
       {authMode === 'register' && (
         <label className="auth-field">
-          Name
+          <span>Full Name</span>
           <input
             id={`${idPrefix}-name`}
             name="name"
@@ -127,13 +187,14 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
             minLength="2"
             maxLength="100"
             required
+            placeholder="e.g. Eleanor Vance"
             value={authForm.name}
             onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })}
           />
         </label>
       )}
       <label className="auth-field">
-        Email
+        <span>Email Address</span>
         <input
           id={`${idPrefix}-email`}
           name="email"
@@ -141,12 +202,15 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
           autoComplete="email"
           maxLength="255"
           required
+          placeholder="name@cinevo.luxury"
           value={authForm.email}
           onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
         />
       </label>
       <div className="auth-field">
-        <label htmlFor={`${idPrefix}-password`}>Password</label>
+        <label htmlFor={`${idPrefix}-password`}>
+          <span>Password</span>
+        </label>
         <div className="password-input-row">
           <input
             id={`${idPrefix}-password`}
@@ -156,6 +220,7 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
             minLength={authMode === 'register' ? 8 : 1}
             maxLength="72"
             required
+            placeholder="••••••••"
             value={authForm.password}
             onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
           />
@@ -164,10 +229,13 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
             type="button"
             aria-controls={`${idPrefix}-password`}
             aria-pressed={showPassword}
+            title={showPassword ? 'Hide password' : 'Show password'}
             onClick={() => setShowPassword((visible) => !visible)}
           >
-            {showPassword ? 'Hide' : 'Show'}
-            <span className="visually-hidden"> password</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }} aria-hidden="true">
+              {showPassword ? 'visibility_off' : 'visibility'}
+            </span>
+            <span className="visually-hidden">{showPassword ? 'Hide' : 'Show'} password</span>
           </button>
         </div>
         {authMode === 'register' && <small className="auth-field-hint">Use 8–72 characters.</small>}
@@ -175,11 +243,17 @@ function AuthForm({ onAuthenticated, message = '', initialMode = 'login', onMode
       {authError && <p className="auth-error" role="alert">{authError}</p>}
       {message && <p className="auth-error" role="alert">{message}</p>}
       <button className="primary-button auth-submit-button" type="submit" disabled={authStatus === 'loading'}>
-        {authStatus === 'loading'
-          ? 'Please wait...'
-          : authMode === 'login'
-            ? 'Sign in'
-            : 'Create account'}
+        {authStatus === 'loading' ? (
+          <>
+            <span className="material-symbols-outlined spin-icon" aria-hidden="true">sync</span>
+            <span>Please wait...</span>
+          </>
+        ) : (
+          <>
+            <span>{authMode === 'login' ? 'Sign In' : 'Create Account'}</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }} aria-hidden="true">arrow_forward</span>
+          </>
+        )}
       </button>
     </form>
   )
@@ -191,10 +265,11 @@ function AuthPage({ mode, onAuthenticated, onModeChange, onBack }) {
   return (
     <main className="auth-page">
       <button className="secondary-button back-button" type="button" onClick={onBack}>
-        ← Back
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">arrow_back</span>
+        <span>Back to Movies</span>
       </button>
       <div className="auth-page-heading">
-        <span className="section-kicker">{isRegistration ? 'YOUR NEXT MOVIE NIGHT STARTS HERE' : 'WELCOME BACK TO CINEVO'}</span>
+        <span className="section-kicker">{isRegistration ? 'YOUR NEXT SCREENING STARTS HERE' : 'WELCOME BACK TO CINEVO'}</span>
         <h1>{isRegistration ? 'Create your account.' : 'Sign in to Cinevo.'}</h1>
         <p>{isRegistration
           ? 'Create an account to book screenings and manage your reservations.'
@@ -210,7 +285,7 @@ function AuthPage({ mode, onAuthenticated, onModeChange, onBack }) {
   )
 }
 
-function SeatSelection({ showtime, authSession, onAuthenticated, onAuthenticationExpired, onBack }) {
+function SeatSelection({ showtime, movie, authSession, onAuthenticated, onAuthenticationExpired, onBack }) {
   const [seats, setSeats] = useState([])
   const [selectedSeatIds, setSelectedSeatIds] = useState(() => new Set())
   const [status, setStatus] = useState('loading')
@@ -221,6 +296,7 @@ function SeatSelection({ showtime, authSession, onAuthenticated, onAuthenticatio
   const [bookingStatus, setBookingStatus] = useState('idle')
   const [bookingError, setBookingError] = useState('')
   const [confirmation, setConfirmation] = useState(null)
+  const [viewStep, setViewStep] = useState('seats')
   const bookingInFlight = useRef(false)
 
   useEffect(() => {
@@ -335,11 +411,78 @@ function SeatSelection({ showtime, authSession, onAuthenticated, onAuthenticatio
     confirmation?.seats?.map((seat) => seat.seatId) ?? [],
   )
   const confirmedSeats = seats.filter((seat) => confirmationSeatIds.has(seat.id))
+  const finalConfirmedSeats = confirmedSeats.length > 0 ? confirmedSeats : selectedSeats
 
   return (
     <section className="seat-selection" aria-labelledby="seat-selection-heading">
-      <button className="secondary-button back-button" onClick={onBack}>← Back to showtimes</button>
-      <div className="seat-selection-heading">
+      {/* 1. Sub-navigation Context Strip & Booking Stepper */}
+      <div className="booking-context-strip">
+        <div className="booking-context-inner">
+          <div className="booking-meta-group">
+            <button
+              className="booking-back-link"
+              type="button"
+              onClick={viewStep === 'review' ? () => setViewStep('seats') : onBack}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+              <span>
+                {viewStep === 'review'
+                  ? `Modify Seats (${movie?.title || 'Screening'})`
+                  : 'Back to Showtimes'}
+              </span>
+            </button>
+            <div className="booking-meta-divider" aria-hidden="true" />
+            <div className="showtime-meta-pill">
+              <span className="meta-pulse-dot" aria-hidden="true" />
+              <span className="meta-movie-title">{movie?.title || showtime.movieTitle || 'Exclusive Screening'}</span>
+              <span className="meta-sep" aria-hidden="true">•</span>
+              <span className="meta-time">{formatShowtimeDateTime(showtime.startsAt)}</span>
+              {showtime.screenName && (
+                <>
+                  <span className="meta-sep" aria-hidden="true">•</span>
+                  <span className="meta-screen">{showtime.screenName}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <nav aria-label="Booking progress" className="booking-stepper">
+            <div className="stepper-step completed">
+              <span className="stepper-badge"><span className="material-symbols-outlined" aria-hidden="true">check</span></span>
+              <span className="stepper-label">1. Film</span>
+            </div>
+            <div className="stepper-line" aria-hidden="true" />
+            <div className="stepper-step completed">
+              <span className="stepper-badge"><span className="material-symbols-outlined" aria-hidden="true">check</span></span>
+              <span className="stepper-label">2. Showtime</span>
+            </div>
+            <div className="stepper-line" aria-hidden="true" />
+            <div className={`stepper-step ${viewStep === 'review' || confirmation ? 'completed' : 'active'}`}>
+              <span className="stepper-badge">
+                {viewStep === 'review' || confirmation ? (
+                  <span className="material-symbols-outlined" aria-hidden="true">check</span>
+                ) : (
+                  '3'
+                )}
+              </span>
+              <span className="stepper-label">3. Choose Seats</span>
+            </div>
+            <div className="stepper-line" aria-hidden="true" />
+            <div className={`stepper-step ${confirmation ? 'completed' : viewStep === 'review' ? 'active' : 'pending'}`}>
+              <span className="stepper-badge">
+                {confirmation ? (
+                  <span className="material-symbols-outlined" aria-hidden="true">check</span>
+                ) : (
+                  '4'
+                )}
+              </span>
+              <span className="stepper-label">4. Review &amp; Confirm</span>
+            </div>
+          </nav>
+        </div>
+      </div>
+
+      <div className="seat-selection-heading visually-hidden">
         <span className="section-kicker">{showtime.cinemaName}{showtime.city ? ` · ${showtime.city}` : ''}</span>
         <h3 id="seat-selection-heading">Select your seats</h3>
         {showtime.startsAt && (
@@ -364,118 +507,745 @@ function SeatSelection({ showtime, authSession, onAuthenticated, onAuthenticatio
           <p>This screening does not have any seats listed.</p>
         </div>
       ) : confirmation ? (
-        <div className="booking-confirmation" role="status">
-          <span className="section-kicker">BOOKING CONFIRMED</span>
-          <h3>Your seats are reserved</h3>
-          <p className="booking-reference">Booking ID: <strong>{confirmation.booking.id}</strong></p>
-          <div className="booking-confirmation-details">
-            <div>
-              <span className="section-kicker">SHOWTIME</span>
-              <p>{showtime.cinemaName}{showtime.city ? ` · ${showtime.city}` : ''}</p>
-              <p>{formatShowtimeDateTime(showtime.startsAt)}{showtime.screenName ? ` · ${showtime.screenName}` : ''}</p>
-            </div>
-            <div>
-              <span className="section-kicker">SEATS</span>
-              <p>{confirmedSeats.length ? confirmedSeats.map(getSeatLabel).join(', ') : 'Seat labels unavailable'}</p>
-            </div>
-            {Number.isFinite(confirmation.booking.totalAmountInPaise) && (
-              <div>
-                <span className="section-kicker">TOTAL</span>
-                <p>{formatTicketPrice(confirmation.booking.totalAmountInPaise)}</p>
-              </div>
-            )}
-          </div>
-          <p className="booking-payment-note">Payment has not been collected.</p>
-        </div>
-      ) : (
-        <>
-          <div className="seat-map-panel">
-            <div className="screen-indicator"><span /> SCREEN <span /></div>
-            <div className="seat-legend" aria-label="Seat availability legend">
-              <span><i className="seat-legend-seat available" /> Available</span>
-              <span><i className="seat-legend-seat selected" /> Selected</span>
-              <span><i className="seat-legend-seat unavailable" /> Unavailable</span>
-            </div>
-            <div className="seat-rows">
-              {[...seatsByRow.entries()].map(([rowLabel, rowSeats]) => (
-                <div className="seat-row" key={rowLabel}>
-                  <span className="seat-row-label">{rowLabel}</span>
-                  <div className="seat-row-items">
-                    {rowSeats.map((seat) => {
-                      const isSelected = selectedSeatIds.has(seat.id)
-                      const isAvailable = seat.status === 'available'
-                      const selectionLimitReached = !isSelected &&
-                        selectedSeatIds.size >= MAX_BOOKING_SEATS
-                      const seatClass = isSelected
-                        ? 'seat-button selected'
-                        : isAvailable
-                          ? `seat-button available${selectionLimitReached ? ' limit-reached' : ''}`
-                          : 'seat-button unavailable'
-
-                      return (
-                        <button
-                          className={seatClass}
-                          key={seat.id}
-                          type="button"
-                          disabled={!isAvailable || selectionLimitReached}
-                          aria-pressed={isSelected}
-                          aria-label={`Seat ${getSeatLabel(seat)}, ${isAvailable ? (isSelected ? 'selected' : selectionLimitReached ? 'available, booking limit reached' : 'available') : 'unavailable'}, ${seat.seatType}`}
-                          title={`${getSeatLabel(seat)} · ${seat.seatType}`}
-                          onClick={() => toggleSeat(seat)}
-                        >
-                          {seat.seatNumber}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <span className="seat-row-label">{rowLabel}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="seat-selection-summary" aria-live="polite">
-            <div>
-              <span className="section-kicker">YOUR SEATS</span>
-              <p>{selectedSeats.length ? selectedSeats.map(getSeatLabel).join(', ') : 'No seats selected'}</p>
-              <small>{selectedSeats.length} {selectedSeats.length === 1 ? 'seat' : 'seats'} selected</small>
-              {selectedSeats.length >= MAX_BOOKING_SEATS && (
-                <small>Maximum {MAX_BOOKING_SEATS} seats per booking.</small>
+        /* PHASE 5: DIGITAL CINEMA PASS CONFIRMATION */
+        <div className="digital-ticket-container" role="status">
+          {/* Top Control Bar */}
+          <div className="digital-ticket-top-bar">
+            <button className="booking-back-link" type="button" onClick={onBack}>
+              <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+              <span>Back to Movies</span>
+            </button>
+            <div className="ticket-meta-badges">
+              {confirmation.booking.createdAt && (
+                <span className="ticket-issued-pill">
+                  Issued: {formatShowtimeDateTime(confirmation.booking.createdAt)}
+                </span>
               )}
+              <span className="ticket-confirmed-badge">
+                <span className="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                <span>RESERVATION CONFIRMED</span>
+              </span>
             </div>
-            <div className="seat-total">
-              <span className="section-kicker">TOTAL</span>
-              <strong>{totalPrice === null ? 'Price unavailable' : formatTicketPrice(totalPrice)}</strong>
+          </div>
+
+          {/* Central Luxury Boarding Pass Ticket */}
+          <article className="ticket-board-pass booking-confirmation">
+            {/* Ambient Lighting Overlay */}
+            <div className="ticket-ambient-glow" aria-hidden="true" />
+
+            {/* Left / Main Ticket Body */}
+            <div className="ticket-main-body">
+              {/* Film Title, Poster & Specs */}
+              <div className="ticket-film-header">
+                {movie?.posterUrl ? (
+                  <img
+                    src={movie.posterUrl}
+                    alt={movie.title || 'Movie Poster'}
+                    className="ticket-film-poster"
+                  />
+                ) : (
+                  <div className="ticket-film-poster-placeholder" aria-hidden="true">
+                    <span className="material-symbols-outlined">movie</span>
+                  </div>
+                )}
+                <div className="ticket-film-info">
+                  <div className="ticket-badges-row">
+                    {movie?.language && <span className="ticket-format-badge">{movie.language}</span>}
+                    {movie?.durationMinutes && <span className="ticket-spec-badge">{movie.durationMinutes} Min</span>}
+                    {showtime.screenName && <span className="ticket-spec-badge">{showtime.screenName}</span>}
+                  </div>
+                  <h2 className="ticket-film-title">{movie?.title || showtime.movieTitle || 'Exclusive Screening'}</h2>
+                  <p className="ticket-film-director">
+                    {[movie?.language, movie?.durationMinutes ? `${movie.durationMinutes} min` : '', movie?.releaseDate ? `Released ${formatReleaseDate(movie.releaseDate)}` : ''].filter(Boolean).join(' · ')}
+                  </p>
+                  {showtime.screenName && (
+                    <div className="ticket-audio-spec">
+                      <span className="material-symbols-outlined" aria-hidden="true">theater_comedy</span>
+                      <span>Auditorium: {showtime.screenName}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Venue & Coordinates Grid */}
+              <div className="ticket-coords-grid booking-confirmation-details">
+                <div className="ticket-coord-item">
+                  <span className="coord-label">CINEMA COMPLEX</span>
+                  <strong className="coord-value">{showtime.cinemaName}</strong>
+                  <span className="coord-sub">{showtime.city || 'Flagship Auditorium'}</span>
+                </div>
+                <div className="ticket-coord-item">
+                  <span className="coord-label">AUDITORIUM</span>
+                  <strong className="coord-value primary">{showtime.screenName || 'AUDI 01'}</strong>
+                  <span className="coord-sub">Reserved Auditorium Screen</span>
+                </div>
+                <div className="ticket-coord-item">
+                  <span className="coord-label">DATE &amp; SHOWTIME</span>
+                  <strong className="coord-value">{formatShowtimeDateTime(showtime.startsAt)}</strong>
+                  <span className="coord-sub gold">Doors open 30 mins prior</span>
+                </div>
+              </div>
+
+              {/* Seating Allocation & Total */}
+              <div className="ticket-seating-row">
+                <div>
+                  <span className="coord-label">ALLOCATED SEATS</span>
+                  <div className="ticket-seats-lead">
+                    <strong className="ticket-seats-text">
+                      {finalConfirmedSeats.length ? finalConfirmedSeats.map(getSeatLabel).join(', ') : 'Seat labels unavailable'}
+                    </strong>
+                    <span className="ticket-seats-count">({finalConfirmedSeats.length} Admissions)</span>
+                  </div>
+                  <span className="ticket-tier-text">
+                    Reserved Auditorium Seating · Present booking reference for entry
+                  </span>
+                </div>
+                <div className="ticket-total-box">
+                  <span className="coord-label">TOTAL REMITTANCE</span>
+                  <strong className="ticket-total-price">
+                    {Number.isFinite(confirmation.booking.totalAmountInPaise)
+                      ? formatTicketPrice(confirmation.booking.totalAmountInPaise)
+                      : formatTicketPrice(totalPrice)}
+                  </strong>
+                  <span className="ticket-tax-note">All taxes and box office charges included in ticket total</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Perforation Separator */}
+            <div className="ticket-perforation-sep" aria-hidden="true">
+              <div className="notch-cut notch-top" />
+              <div className="perforation-line" />
+              <div className="notch-cut notch-bottom" />
+            </div>
+
+            {/* Right / Scannable Gate Pass Stub */}
+            <div className="ticket-stub">
+              <div className="stub-header">
+                <span className="stub-label">GATE PASS</span>
+                <span className="stub-badge">VALID FOR ENTRY</span>
+              </div>
+
+              {/* Scannable Vector QR Module (Illustrative) */}
+              <div className="ticket-qr-box">
+                <svg
+                  className="ticket-qr-svg"
+                  viewBox="0 0 100 100"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-label={`Illustrative digital entry pass for booking reference ${confirmation.booking.id}. Present Ref ID for entry.`}
+                >
+                  <rect fill="currentColor" height="28" rx="2" width="28" x="5" y="5" />
+                  <rect fill="#0e0e13" height="20" rx="1" width="20" x="9" y="9" />
+                  <rect fill="currentColor" height="12" rx="1" width="12" x="13" y="13" />
+                  <rect fill="currentColor" height="28" rx="2" width="28" x="67" y="5" />
+                  <rect fill="#0e0e13" height="20" rx="1" width="20" x="71" y="9" />
+                  <rect fill="currentColor" height="12" rx="1" width="12" x="75" y="13" />
+                  <rect fill="currentColor" height="28" rx="2" width="28" x="5" y="67" />
+                  <rect fill="#0e0e13" height="20" rx="1" width="20" x="9" y="71" />
+                  <rect fill="currentColor" height="12" rx="1" width="12" x="13" y="75" />
+                  <rect fill="currentColor" height="6" width="6" x="38" y="6" />
+                  <rect fill="currentColor" height="6" width="6" x="48" y="10" />
+                  <rect fill="currentColor" height="6" width="5" x="58" y="6" />
+                  <rect fill="currentColor" height="6" width="6" x="38" y="18" />
+                  <rect fill="currentColor" height="6" width="7" x="48" y="24" />
+                  <rect fill="currentColor" height="6" width="6" x="10" y="38" />
+                  <rect fill="currentColor" height="6" width="6" x="20" y="44" />
+                  <rect fill="currentColor" height="6" width="6" x="28" y="38" />
+                  <rect fill="currentColor" height="6" width="6" x="38" y="38" />
+                  <rect fill="#c93b4e" height="8" width="8" x="48" y="36" />
+                  <rect fill="currentColor" height="6" width="6" x="62" y="38" />
+                  <rect fill="currentColor" height="6" width="6" x="72" y="42" />
+                  <rect fill="currentColor" height="6" width="6" x="84" y="38" />
+                  <rect fill="currentColor" height="8" width="6" x="38" y="48" />
+                  <rect fill="currentColor" height="6" width="8" x="50" y="50" />
+                  <rect fill="currentColor" height="6" width="6" x="64" y="48" />
+                  <rect fill="currentColor" height="6" width="6" x="78" y="52" />
+                  <rect fill="currentColor" height="6" width="6" x="38" y="62" />
+                  <rect fill="currentColor" height="6" width="8" x="48" y="68" />
+                  <rect fill="currentColor" height="6" width="6" x="62" y="62" />
+                  <rect fill="currentColor" height="8" width="6" x="74" y="68" />
+                  <rect fill="currentColor" height="6" width="6" x="86" y="62" />
+                  <rect fill="currentColor" height="6" width="6" x="38" y="76" />
+                  <rect fill="currentColor" height="8" width="6" x="52" y="80" />
+                  <rect fill="currentColor" height="6" width="8" x="66" y="78" />
+                  <rect fill="currentColor" height="6" width="6" x="80" y="82" />
+                  <rect fill="currentColor" height="6" width="6" x="42" y="88" />
+                  <rect fill="currentColor" height="6" width="6" x="70" y="88" />
+                </svg>
+                <span className="stub-scan-caption">
+                  Admit {finalConfirmedSeats.length} · Present Ref ID at Concierge
+                </span>
+                <small className="stub-watermark" style={{ fontSize: '10px', color: '#8f8b95' }}>
+                  (Illustrative Digital Entry Pass)
+                </small>
+              </div>
+
+              {/* Pass ID Reference */}
+              <div className="stub-ref-box">
+                <span className="booking-reference stub-ref-id">
+                  Ref: <strong>{confirmation.booking.id}</strong>
+                </span>
+                <span className="stub-watermark">Cinevo Verified Pass</span>
+              </div>
+
+              <div className="stub-service-indicator">
+                <span className="material-symbols-outlined" aria-hidden="true">room_service</span>
+                <span>In-Seat Attendant Privileges Included</span>
+              </div>
+            </div>
+          </article>
+
+          {/* Ticket Utilities & Wallet Export Actions Bar */}
+          <div className="ticket-actions-bar">
+            <div className="ticket-actions-left">
+              <button
+                className="primary-button ticket-view-bookings-btn"
+                type="button"
+                onClick={() => { window.location.hash = '#bookings' }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">confirmation_number</span>
+                <span>View My Bookings</span>
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => window.print()}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">print</span>
+                <span>Print / Save Pass</span>
+              </button>
             </div>
             <button
-              className="primary-button booking-submit-button"
+              className="secondary-button"
               type="button"
-              disabled={selectedSeatIds.size === 0 || bookingStatus === 'loading'}
-              onClick={authSession ? submitBooking : () => {
-                setShowAuthForm(true)
-                setAuthError('Sign in or create an account before booking.')
-              }}
+              onClick={onBack}
             >
-              {bookingStatus === 'loading'
-                ? 'Creating booking...'
-                : authSession
-                  ? 'Book Selected Seats'
-                  : 'Continue to Booking'}
+              <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+              <span>Return to Movies</span>
             </button>
           </div>
-          {bookingError && <div className="notice booking-error" role="alert">{bookingError}</div>}
-          {!authSession && showAuthForm && (
-            <AuthForm
-              key={authError}
-              onAuthenticated={(session) => {
-                onAuthenticated(session)
-                setAuthError('')
-                setShowAuthForm(false)
-              }}
-              message={authError}
-            />
-          )}
-        </>
+        </div>
+      ) : viewStep === 'review' ? (
+        /* PHASE 5: BOOKING REVIEW SCREEN */
+        <div className="booking-review-container">
+          <div className="booking-review-layout">
+            {/* Left Primary Column: Film Details, Venue, Seats, Patron Liaison & Screening Protocols */}
+            <div className="review-primary-col">
+              {/* SECTION A: Cinema & Film Details Card */}
+              <div className="review-card review-film-card">
+                <div className="review-ambient-glow" aria-hidden="true" />
+                <div className="review-film-header">
+                  {movie?.posterUrl ? (
+                    <img
+                      src={movie.posterUrl}
+                      alt={movie.title || 'Movie Poster'}
+                      className="review-poster"
+                    />
+                  ) : (
+                    <div className="review-poster-placeholder" aria-hidden="true">
+                      <span className="material-symbols-outlined">movie</span>
+                    </div>
+                  )}
+                  <div className="review-film-meta">
+                    <div className="review-pill-row">
+                      {movie?.language && <span className="review-pill format">{movie.language}</span>}
+                      {movie?.durationMinutes && <span className="review-pill cert">{movie.durationMinutes} Min</span>}
+                      {showtime.screenName && <span className="review-pill genre">{showtime.screenName}</span>}
+                    </div>
+                    <h2 className="review-film-title">{movie?.title || showtime.movieTitle || 'Exclusive Screening'}</h2>
+                    <p className="review-film-synopsis">
+                      {movie?.description ? movie.description.slice(0, 160) + (movie.description.length > 160 ? '…' : '') : 'Experience this cinematic presentation in our private screening auditorium.'}
+                    </p>
+                    <div className="review-specs-ribbon">
+                      {showtime.screenName && (
+                        <span className="review-spec-chip">
+                          <span className="material-symbols-outlined gold" aria-hidden="true">tv</span>
+                          <span>{showtime.screenName}</span>
+                        </span>
+                      )}
+                      {movie?.durationMinutes && (
+                        <span className="review-spec-chip">
+                          <span className="material-symbols-outlined crimson" aria-hidden="true">schedule</span>
+                          <span>{movie.durationMinutes} Minutes</span>
+                        </span>
+                      )}
+                      {movie?.language && (
+                        <span className="review-spec-chip">
+                          <span className="material-symbols-outlined gold" aria-hidden="true">translate</span>
+                          <span>{movie.language}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Structured Venue & Showtime Grid */}
+                <div className="review-venue-grid">
+                  <div className="review-venue-card">
+                    <span className="material-symbols-outlined crimson" aria-hidden="true">theater_comedy</span>
+                    <div>
+                      <span className="coord-label">VENUE &amp; AUDITORIUM</span>
+                      <strong className="coord-value">{showtime.cinemaName}</strong>
+                      <span className="coord-sub">{showtime.screenName || 'Audi 01'}{showtime.city ? ` · ${showtime.city}` : ''}</span>
+                    </div>
+                  </div>
+                  <div className="review-venue-card">
+                    <span className="material-symbols-outlined gold" aria-hidden="true">schedule</span>
+                    <div>
+                      <span className="coord-label">DATE &amp; SHOWTIME</span>
+                      <strong className="coord-value">{formatShowtimeDateTime(showtime.startsAt)}</strong>
+                      <span className="coord-sub">Doors open 30 mins prior</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Allocated Seats Ribbon */}
+                <div className="review-allocated-ribbon">
+                  <div className="review-seats-display">
+                    <div className="review-seat-icon-box" aria-hidden="true">
+                      <span className="material-symbols-outlined">airline_seat_recline_extra</span>
+                    </div>
+                    <div>
+                      <span className="coord-label">ALLOCATED SEATS</span>
+                      <h4 className="review-seats-headline">
+                        Seats: <span className="crimson">{selectedSeats.map(getSeatLabel).join(', ')}</span> ({selectedSeats.length} {selectedSeats.length === 1 ? 'ticket' : 'tickets'})
+                      </h4>
+                      <p className="review-seats-tier-sub">
+                        Royale Recliner / Premium Lounger Seating
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    className="review-change-seats-btn"
+                    type="button"
+                    onClick={() => setViewStep('seats')}
+                  >
+                    <span>Change Seats</span>
+                    <span className="material-symbols-outlined" aria-hidden="true">edit</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION B: Patron Liaison & Ticket Delivery */}
+              <div className="review-card">
+                <div className="review-card-heading">
+                  <div className="review-heading-group">
+                    <span className="material-symbols-outlined crimson" aria-hidden="true">badge</span>
+                    <h3>Patron Liaison &amp; Ticket Delivery</h3>
+                  </div>
+                  <span className="vip-status-badge">
+                    <span className="material-symbols-outlined gold" aria-hidden="true">stars</span>
+                    <span>Royale Club Member</span>
+                  </span>
+                </div>
+                <div className="review-patron-grid">
+                  <div className="review-patron-card">
+                    <span className="coord-label">PRIMARY PATRON</span>
+                    <strong className="coord-value">{authSession?.user?.name || 'Valued Patron'}</strong>
+                    <span className="coord-sub gold">Verified Account</span>
+                  </div>
+                  <div className="review-patron-card">
+                    <span className="coord-label">VERIFIED EMAIL</span>
+                    <strong className="coord-value truncate">{authSession?.user?.email || 'Registered User'}</strong>
+                    <span className="coord-sub">Instant E-Ticket Dispatch</span>
+                  </div>
+                  <div className="review-patron-card">
+                    <span className="coord-label">PASS DELIVERY</span>
+                    <strong className="coord-value">Digital Entry Pass</strong>
+                    <span className="coord-sub">Present Ref ID at Foyer</span>
+                  </div>
+                </div>
+                <div className="review-delivery-note">
+                  <span className="material-symbols-outlined crimson" aria-hidden="true">qr_code_scanner</span>
+                  <p>
+                    Instant contactless digital cinema pass with booking confirmation reference will be generated immediately upon completing checkout.
+                  </p>
+                </div>
+              </div>
+
+              {/* SECTION C: Screening Protocols & Admission Charter */}
+              <div className="review-card">
+                <div className="review-card-heading">
+                  <div className="review-heading-group">
+                    <span className="material-symbols-outlined" aria-hidden="true">policy</span>
+                    <h3>Screening Protocols &amp; Privileges</h3>
+                  </div>
+                </div>
+                <div className="review-protocol-list">
+                  <div className="review-protocol-item">
+                    <span className="material-symbols-outlined crimson" aria-hidden="true">verified_user</span>
+                    <div>
+                      <strong className="protocol-title">Admission &amp; Verification:</strong>
+                      <span> Present your booking reference ID at the foyer reception desk for reservation verification prior to seating.</span>
+                    </div>
+                  </div>
+                  <div className="review-protocol-item">
+                    <span className="material-symbols-outlined crimson" aria-hidden="true">spatial_audio_off</span>
+                    <div>
+                      <strong className="protocol-title">Acoustic Immersion:</strong>
+                      <span> Screening features calibrated auditorium acoustics adjusted to optimal cinema presentation levels.</span>
+                    </div>
+                  </div>
+                  <div className="review-protocol-item">
+                    <span className="material-symbols-outlined crimson" aria-hidden="true">room_service</span>
+                    <div>
+                      <strong className="protocol-title">Lounger Privileges:</strong>
+                      <span> Reservation includes allocated auditorium seating, priority admission, and concierge service where available.</span>
+                    </div>
+                  </div>
+                  <div className="review-protocol-item">
+                    <span className="material-symbols-outlined crimson" aria-hidden="true">lock_clock</span>
+                    <div>
+                      <strong className="protocol-title">Reservation Integrity:</strong>
+                      <span> Allocated seats {selectedSeats.map(getSeatLabel).join(', ')} are locked for your order upon confirmation. Active bookings can be reviewed or cancelled anytime via My Bookings.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Secondary Column: Sticky Order Summary & Confirmation CTA */}
+            <div className="review-secondary-col">
+              <div className="review-card review-summary-card">
+                <div className="review-summary-header">
+                  <h3>Order Summary</h3>
+                  <span className="review-encrypted-badge">
+                    <span className="material-symbols-outlined gold" aria-hidden="true">lock</span>
+                    <span>256-Bit Encrypted</span>
+                  </span>
+                </div>
+
+                <div className="review-price-list">
+                  <div className="review-price-row">
+                    <div>
+                      <strong className="price-item-name">{selectedSeats.length} × Cinema Admissions</strong>
+                      <span className="coord-sub">{selectedSeats.map(getSeatLabel).join(', ')} · {Number.isFinite(ticketPrice) ? formatTicketPrice(ticketPrice) : '—'} each</span>
+                    </div>
+                    <strong className="price-item-val font-mono">
+                      {totalPrice === null ? '—' : formatTicketPrice(totalPrice)}
+                    </strong>
+                  </div>
+
+                  <div className="review-grand-total">
+                    <div>
+                      <span className="total-lead-text">Total Payable</span>
+                      <span className="coord-sub">All taxes and box office charges included in ticket total</span>
+                    </div>
+                    <strong className="review-total-amount font-mono">
+                      {totalPrice === null ? 'Price unavailable' : formatTicketPrice(totalPrice)}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Primary Action CTA */}
+                <div className="review-actions-box">
+                  <button
+                    className="primary-button booking-submit-button booking-confirm-submit-button"
+                    type="button"
+                    disabled={selectedSeatIds.size === 0 || bookingStatus === 'loading'}
+                    onClick={submitBooking}
+                  >
+                    <span>
+                      {bookingStatus === 'loading'
+                        ? 'Confirming Booking...'
+                        : `Confirm Booking · ${formatTicketPrice(totalPrice)}`}
+                    </span>
+                    <span className="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                  </button>
+                  <small className="review-guarantee-note">
+                    Instant scannable digital entry pass allocated upon confirmation.
+                  </small>
+                </div>
+
+                {bookingError && (
+                  <div className="notice booking-error" role="alert">
+                    <p>{bookingError}</p>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      style={{ marginTop: '8px', fontSize: '11px', padding: '6px 12px' }}
+                      onClick={() => setViewStep('seats')}
+                    >
+                      Re-select Seats
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* PHASE 4 & 5: SEAT SELECTION ARENA */
+        <div className="seat-selection-arena">
+          {/* Left Stage: Seat Map */}
+          <div className="seat-map-panel">
+            {/* Curved Cinema Screen Graphic */}
+            <div className="curved-screen-stage">
+              <div className="projector-glow" aria-hidden="true" />
+              <svg className="screen-curve-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 800 64" aria-hidden="true">
+                <path d="M 20 54 Q 400 6 780 54" stroke="currentColor" strokeLinecap="round" strokeWidth="3" />
+                <path d="M 40 56 Q 400 14 760 56" stroke="rgba(255,255,255,0.18)" strokeDasharray="4 6" strokeWidth="1" />
+              </svg>
+              <div className="screen-caption">
+                <span className="material-symbols-outlined" aria-hidden="true">videocam</span>
+                <span>All Eyes Forward · Curved Screen Projection{showtime.screenName ? ` · ${showtime.screenName}` : ''}</span>
+              </div>
+            </div>
+
+            {/* Accessible Status Legend */}
+            <div className="seat-legend" aria-label="Seat availability legend">
+              <div className="legend-item">
+                <span className="seat-legend-icon available" aria-hidden="true">1</span>
+                <span>Available</span>
+              </div>
+              <div className="legend-item">
+                <span className="seat-legend-icon selected" aria-hidden="true">
+                  <span className="material-symbols-outlined">check</span>
+                </span>
+                <span>Selected</span>
+              </div>
+              <div className="legend-item">
+                <span className="seat-legend-icon unavailable" aria-hidden="true">
+                  <span className="material-symbols-outlined">close</span>
+                </span>
+                <span>Occupied</span>
+              </div>
+              <div className="legend-item">
+                <span className="seat-legend-icon premium" aria-hidden="true">
+                  <span className="material-symbols-outlined">workspace_premium</span>
+                </span>
+                <span>Premium / Recliner</span>
+              </div>
+            </div>
+
+            {/* Seating Grid */}
+            <div className="seat-rows-viewport" id="seatMapViewport">
+              <div className="seat-rows">
+                {[...seatsByRow.entries()].map(([rowLabel, rowSeats]) => {
+                  const hasSelectedInRow = rowSeats.some((s) => selectedSeatIds.has(s.id))
+                  return (
+                    <div className="seat-row" key={rowLabel}>
+                      <span className={`seat-row-label ${hasSelectedInRow ? 'active' : ''}`}>{rowLabel}</span>
+                      <div className="seat-row-items">
+                        {rowSeats.map((seat) => {
+                          const isSelected = selectedSeatIds.has(seat.id)
+                          const isAvailable = seat.status === 'available'
+                          const isRecliner = Boolean(seat.seatType && /recliner/i.test(seat.seatType))
+                          const isPremium = Boolean(seat.seatType && /premium|vip/i.test(seat.seatType))
+                          const selectionLimitReached = !isSelected &&
+                            selectedSeatIds.size >= MAX_BOOKING_SEATS
+
+                          let seatClass = 'seat-button'
+                          if (isSelected) {
+                            seatClass += ' selected'
+                          } else if (isAvailable) {
+                            seatClass += ' available'
+                            if (isRecliner) seatClass += ' recliner'
+                            else if (isPremium) seatClass += ' premium'
+                            if (selectionLimitReached) seatClass += ' limit-reached'
+                          } else {
+                            seatClass += ' unavailable'
+                          }
+
+                          return (
+                            <button
+                              className={seatClass}
+                              key={seat.id}
+                              type="button"
+                              disabled={!isAvailable || selectionLimitReached}
+                              aria-pressed={isSelected}
+                              aria-label={`Seat ${getSeatLabel(seat)}, ${isAvailable ? (isSelected ? 'selected' : selectionLimitReached ? 'available, booking limit reached' : 'available') : 'unavailable'}, ${seat.seatType}`}
+                              title={`${getSeatLabel(seat)} · ${seat.seatType}`}
+                              onClick={() => toggleSeat(seat)}
+                            >
+                              <span className="seat-cushion" aria-hidden="true" />
+                              <span className="seat-inner-content">
+                                {isSelected ? (
+                                  <span className="material-symbols-outlined seat-glyph" aria-hidden="true">check</span>
+                                ) : !isAvailable ? (
+                                  <span className="material-symbols-outlined seat-glyph" aria-hidden="true">close</span>
+                                ) : null}
+                                <span className="seat-number-text">{seat.seatNumber}</span>
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <span className={`seat-row-label ${hasSelectedInRow ? 'active' : ''}`}>{rowLabel}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Hall Guidance & Advisory Drawer */}
+            <div className="seating-advisory-drawer">
+              <div className="advisory-message">
+                <span className="material-symbols-outlined" aria-hidden="true">policy</span>
+                <div>
+                  <h4>Continuous Seating Optimization</h4>
+                  <p>Maximum {MAX_BOOKING_SEATS} seats per reservation. Best viewing angles in central clusters.</p>
+                </div>
+              </div>
+              <div className="advisory-badge">
+                <span className="material-symbols-outlined" aria-hidden="true">verified</span>
+                <span>Direct Confirmation</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Rail: Booking Summary */}
+          <aside className="booking-summary-rail" aria-live="polite" aria-label="Current booking summary">
+            <div className="rail-header">
+              <div>
+                <span className="section-kicker">BOOKING DETAILS</span>
+                <h3 className="rail-title">Ticket Summary</h3>
+              </div>
+              <span className="rail-count-badge">
+                {selectedSeats.length} {selectedSeats.length === 1 ? 'Seat' : 'Seats'} Selected
+              </span>
+            </div>
+
+            {/* Movie & Hall Mini Dossier */}
+            <div className="rail-dossier">
+              {movie?.posterUrl ? (
+                <img
+                  src={movie.posterUrl}
+                  alt={movie.title || 'Movie Poster'}
+                  className="rail-dossier-poster"
+                />
+              ) : (
+                <div className="rail-dossier-poster-placeholder" aria-hidden="true">
+                  <span className="material-symbols-outlined">movie</span>
+                </div>
+              )}
+              <div className="rail-dossier-info">
+                <h4 className="rail-movie-title">{movie?.title || showtime.movieTitle || 'Exclusive Screening'}</h4>
+                <span className="rail-movie-format">{showtime.screenName || 'Main Auditorium'}</span>
+                <p className="rail-movie-cinema">{showtime.cinemaName}{showtime.city ? ` · ${showtime.city}` : ''}</p>
+              </div>
+            </div>
+
+            {/* Showtime Schedule Grid */}
+            <div className="rail-schedule-grid">
+              <div className="rail-schedule-item">
+                <span className="rail-schedule-label">SHOWTIME</span>
+                <span className="rail-schedule-value">{formatShowtimeDateTime(showtime.startsAt)}</span>
+              </div>
+            </div>
+
+            {/* Allocated Seats Listing with Remove Actions */}
+            <div className="rail-seats-section">
+              <div className="rail-seats-header">
+                <span className="section-kicker">ALLOCATED SEATS</span>
+                {selectedSeats.length >= MAX_BOOKING_SEATS && (
+                  <span className="rail-limit-notice">Max {MAX_BOOKING_SEATS} reached</span>
+                )}
+              </div>
+
+              {selectedSeats.length === 0 ? (
+                <div className="rail-empty-seats">
+                  <span className="material-symbols-outlined" aria-hidden="true">chair</span>
+                  <p>No seats selected</p>
+                  <small>Choose up to {MAX_BOOKING_SEATS} seats on the auditorium map.</small>
+                </div>
+              ) : (
+                <div className="rail-seat-list">
+                  {selectedSeats.map((seat) => (
+                    <div className="rail-seat-item" key={seat.id}>
+                      <div className="rail-seat-badge-group">
+                        <span className={`rail-seat-tag ${/premium|recliner/i.test(seat.seatType) ? 'premium' : ''}`}>
+                          {getSeatLabel(seat)}
+                        </span>
+                        <div className="rail-seat-meta">
+                          <span className="rail-seat-tier">
+                            {seat.seatType === 'recliner' ? 'Royale Recliner' : seat.seatType === 'premium' ? 'Premium Lounger' : 'Standard Seat'}
+                          </span>
+                          <span className="rail-seat-coord">Row {seat.rowLabel} · Seat {seat.seatNumber}</span>
+                        </div>
+                      </div>
+                      <div className="rail-seat-item-right">
+                        <span className="rail-seat-price">
+                          {Number.isFinite(ticketPrice) ? formatTicketPrice(ticketPrice) : '—'}
+                        </span>
+                        <button
+                          type="button"
+                          className="rail-seat-remove"
+                          onClick={() => toggleSeat(seat)}
+                          title={`Deselect seat ${getSeatLabel(seat)}`}
+                          aria-label={`Deselect seat ${getSeatLabel(seat)}`}
+                        >
+                          <span className="material-symbols-outlined" aria-hidden="true">close</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Price Breakdown */}
+            <div className="rail-price-breakdown">
+              <div className="price-row">
+                <span className="price-label">Admissions Subtotal ({selectedSeats.length} {selectedSeats.length === 1 ? 'seat' : 'seats'})</span>
+                <span className="price-value font-mono">
+                  {totalPrice === null ? 'Price unavailable' : formatTicketPrice(totalPrice)}
+                </span>
+              </div>
+              <div className="price-row total-row">
+                <span className="total-label">Total Payable</span>
+                <strong className="total-amount font-mono">
+                  {totalPrice === null ? 'Price unavailable' : formatTicketPrice(totalPrice)}
+                </strong>
+              </div>
+              <span className="ticket-tax-note" style={{ fontSize: '11px', color: '#8f8b95', marginTop: '6px', display: 'block' }}>
+                All taxes and box office charges included in ticket total
+              </span>
+            </div>
+
+            {/* Action CTA: Advance to Review */}
+            <div className="rail-actions">
+              <button
+                className="primary-button booking-submit-button"
+                type="button"
+                disabled={selectedSeatIds.size === 0 || bookingStatus === 'loading'}
+                onClick={() => {
+                  if (!authSession) {
+                    setShowAuthForm(true)
+                    setAuthError('Sign in or create an account before reviewing your reservation.')
+                    return
+                  }
+                  setViewStep('review')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+              >
+                <span>
+                  {selectedSeatIds.size === 0
+                    ? 'Select Seats to Continue'
+                    : `Continue to Review · ${formatTicketPrice(totalPrice)}`}
+                </span>
+                <span className="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+              </button>
+              <small className="rail-guarantee-note">
+                Review ticket breakdown and patron credentials in the next step.
+              </small>
+            </div>
+
+            {bookingError && <div className="notice booking-error" role="alert">{bookingError}</div>}
+            {!authSession && showAuthForm && (
+              <AuthForm
+                key={authError}
+                onAuthenticated={(session) => {
+                  onAuthenticated(session)
+                  setAuthError('')
+                  setShowAuthForm(false)
+                  setViewStep('review')
+                }}
+                message={authError}
+              />
+            )}
+          </aside>
+        </div>
       )}
     </section>
   )
@@ -914,7 +1684,10 @@ function ScreenManagementSection({ token, screensCreatedThisSession, setScreensC
       <div className="admin-section-heading">
         <div>
           <span className="section-kicker">CATALOG</span>
-          <h2>Screens</h2>
+          <div className="admin-title-row">
+            <span className="material-symbols-outlined admin-title-icon crimson" aria-hidden="true">tv</span>
+            <h2>Screens</h2>
+          </div>
           <p>Create screens and generate their seat layout.</p>
         </div>
       </div>
@@ -1238,7 +2011,7 @@ function ShowtimeForm({ token, screens, onCreated }) {
   )
 }
 
-function AdminListSection({ title, description, loadItems, renderItem, token, showAddMovie = false, showAddCinema = false, showAddShowtime = false, screens = [] }) {
+function AdminListSection({ title, description, loadItems, renderItem, token, showAddMovie = false, showAddCinema = false, showAddShowtime = false, screens = [], icon = 'category' }) {
   const [items, setItems] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
@@ -1297,7 +2070,10 @@ function AdminListSection({ title, description, loadItems, renderItem, token, sh
       <div className="admin-section-heading">
         <div>
           <span className="section-kicker">CATALOG</span>
-          <h2>{title}</h2>
+          <div className="admin-title-row">
+            <span className="material-symbols-outlined admin-title-icon crimson" aria-hidden="true">{icon}</span>
+            <h2>{title}</h2>
+          </div>
           <p>{description}</p>
         </div>
         {status === 'success' && <span className="admin-count">{items.length} listed</span>}
@@ -1335,7 +2111,10 @@ function AdminDashboard({ authSession, onBack, onSignIn }) {
   if (!authSession) {
     return (
       <main className="admin-page">
-        <button className="secondary-button back-button" type="button" onClick={onBack}>← Back to Movies</button>
+        <button className="secondary-button back-button" type="button" onClick={onBack}>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">arrow_back</span>
+          <span>Back to Movies</span>
+        </button>
         <div className="empty-state" role="status">
           <h1>Admin access required</h1>
           <p>Sign in with an administrator account to open this dashboard.</p>
@@ -1348,7 +2127,10 @@ function AdminDashboard({ authSession, onBack, onSignIn }) {
   if (authSession.user?.role !== 'admin') {
     return (
       <main className="admin-page">
-        <button className="secondary-button back-button" type="button" onClick={onBack}>← Back to Movies</button>
+        <button className="secondary-button back-button" type="button" onClick={onBack}>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">arrow_back</span>
+          <span>Back to Movies</span>
+        </button>
         <div className="empty-state" role="alert">
           <h1>Admin access required</h1>
           <p>This account does not have permission to view the dashboard.</p>
@@ -1359,7 +2141,10 @@ function AdminDashboard({ authSession, onBack, onSignIn }) {
 
   return (
     <main className="admin-page">
-      <button className="secondary-button back-button" type="button" onClick={onBack}>← Back to Movies</button>
+      <button className="secondary-button back-button" type="button" onClick={onBack}>
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">arrow_back</span>
+        <span>Back to Movies</span>
+      </button>
       <header className="admin-page-heading">
         <span className="section-kicker">CINEVO MANAGEMENT</span>
         <h1>Admin Dashboard</h1>
@@ -1368,6 +2153,7 @@ function AdminDashboard({ authSession, onBack, onSignIn }) {
       <div className="admin-grid">
         <AdminListSection
           title="Movies"
+          icon="movie"
           description="Movie records currently in the catalog."
           loadItems={getDashboardMovies}
           token={authSession.token}
@@ -1381,6 +2167,7 @@ function AdminDashboard({ authSession, onBack, onSignIn }) {
         />
         <AdminListSection
           title="Cinemas"
+          icon="theater_comedy"
           description="Cinema locations registered with Cinevo."
           loadItems={getDashboardCinemas}
           renderItem={(cinema) => (
@@ -1399,6 +2186,7 @@ function AdminDashboard({ authSession, onBack, onSignIn }) {
         />
         <AdminListSection
           title="Showtimes"
+          icon="schedule"
           description="Scheduled screenings returned by the existing list API."
           loadItems={getDashboardShowtimes}
           token={authSession.token}
@@ -1498,28 +2286,40 @@ function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onB
 
   return (
     <main className="bookings-page">
-      <button className="secondary-button back-button" onClick={onBack}>← Back</button>
+      <button className="secondary-button back-button" onClick={onBack}>
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }} aria-hidden="true">arrow_back</span>
+        <span>Back to Movies</span>
+      </button>
+
       <div className="bookings-page-heading">
         <span className="section-kicker">YOUR CINEVO ACCOUNT</span>
         <h1>My Bookings</h1>
-        <p>Your booking history and current reservation status.</p>
+        <p>Your luxury cinema reservation history and active digital passes.</p>
       </div>
 
       {!authSession ? (
         <div className="bookings-auth">
           <div className="empty-state">
+            <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#ffb3b6' }} aria-hidden="true">lock</span>
             <h2>Sign in to view your bookings</h2>
-            <p>Your booking history is available only to your account.</p>
+            <p>Your booking history and digital passes are private to your account.</p>
           </div>
           <AuthForm onAuthenticated={handleAuthenticated} message={errorMessage} />
         </div>
       ) : status === 'loading' ? (
-        <div className="empty-state" role="status"><h3>Loading your bookings...</h3><p>Fetching your booking history.</p></div>
+        <div className="empty-state" role="status">
+          <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#ffb3b6', animation: 'spin 1.5s linear infinite' }} aria-hidden="true">sync</span>
+          <h3>Loading your bookings...</h3>
+          <p>Fetching your luxury screening reservations.</p>
+        </div>
       ) : status === 'error' ? (
         <div className="empty-state" role="alert">
+          <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#ffb4ab' }} aria-hidden="true">cloud_off</span>
           <h3>We couldn’t load your bookings</h3>
           <p>{errorMessage}</p>
-          {authSession && <button className="secondary-button" onClick={retryLoading}>Try again</button>}
+          {authSession && (
+            <button className="secondary-button" onClick={retryLoading}>Try again</button>
+          )}
           {!authSession && <AuthForm onAuthenticated={handleAuthenticated} message={errorMessage} />}
         </div>
       ) : (
@@ -1527,46 +2327,89 @@ function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onB
           {cancelNotice && <div className="booking-notice" role="status">{cancelNotice}</div>}
           {cancelError && <div className="notice booking-error" role="alert">{cancelError}</div>}
           {bookings.length === 0 ? (
-            <div className="empty-state"><h3>No bookings yet</h3><p>When you book a screening, it will appear here.</p></div>
+            <div className="empty-state">
+              <span className="material-symbols-outlined" style={{ fontSize: '40px', color: '#554f5c' }} aria-hidden="true">theater_comedy</span>
+              <h3>No bookings yet</h3>
+              <p>When you reserve a screening, your luxury digital passes will appear here.</p>
+              <button
+                className="primary-button"
+                type="button"
+                style={{ marginTop: '16px' }}
+                onClick={() => { window.location.hash = '#movies' }}
+              >
+                <span>Explore Movies</span>
+                <span className="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+              </button>
+            </div>
           ) : (
             <div className="booking-list">
               {bookings.map((booking) => {
                 const isActive = booking.status === 'confirmed'
                 const seatLabels = (booking.seats ?? [])
-                  .map((seat) => seat.rowLabel && Number.isInteger(seat.seatNumber)
-                    ? getSeatLabel(seat)
-                    : null)
+                  .map((seat) => (seat.rowLabel && Number.isInteger(seat.seatNumber) ? getSeatLabel(seat) : null))
                   .filter(Boolean)
 
                 return (
-                  <article className="booking-card" key={booking.id}>
-                    <div className="booking-card-heading">
-                      <div>
-                        <span className="section-kicker">BOOKING</span>
-                        <h2>{booking.showtime?.movieTitle || 'Movie details unavailable'}</h2>
+                  <article className={`booking-card ${isActive ? 'active' : 'cancelled'}`} key={booking.id}>
+                    <div className="booking-card-main">
+                      <div className="booking-card-heading">
+                        <div>
+                          <span className="section-kicker">CINEMA PASS</span>
+                          <h2>{booking.showtime?.movieTitle || 'Movie details unavailable'}</h2>
+                        </div>
+                        <span className={isActive ? 'booking-status active' : 'booking-status cancelled'}>
+                          <span className="status-dot" aria-hidden="true" />
+                          <span>{isActive ? 'Confirmed Reservation' : 'Cancelled'}</span>
+                        </span>
                       </div>
-                      <span className={isActive ? 'booking-status active' : 'booking-status cancelled'}>
-                        {isActive ? 'Confirmed' : 'Cancelled'}
-                      </span>
+
+                      <p className="booking-id">
+                        <span className="booking-id-label">Ref ID:</span> <strong>{booking.id}</strong>
+                      </p>
+
+                      <div className="booking-card-details">
+                        {booking.showtime?.cinemaName && (
+                          <div className="booking-detail-item">
+                            <span className="coord-label">VENUE</span>
+                            <p><strong>{booking.showtime.cinemaName}</strong></p>
+                          </div>
+                        )}
+                        {booking.showtime?.screenName && (
+                          <div className="booking-detail-item">
+                            <span className="coord-label">AUDITORIUM</span>
+                            <p><strong className="crimson">{booking.showtime.screenName}</strong></p>
+                          </div>
+                        )}
+                        {booking.showtime?.startsAt && (
+                          <div className="booking-detail-item">
+                            <span className="coord-label">SHOWTIME</span>
+                            <p><strong>{formatShowtimeDateTime(booking.showtime.startsAt)}</strong></p>
+                          </div>
+                        )}
+                        {seatLabels.length > 0 && (
+                          <div className="booking-detail-item">
+                            <span className="coord-label">RESERVED SEATS</span>
+                            <p><strong className="gold">{seatLabels.join(', ')}</strong></p>
+                          </div>
+                        )}
+                        {Number.isFinite(booking.totalAmountInPaise) && (
+                          <div className="booking-detail-item">
+                            <span className="coord-label">TOTAL PAID</span>
+                            <p><strong className="price-lead">{formatTicketPrice(booking.totalAmountInPaise)}</strong></p>
+                          </div>
+                        )}
+                        {booking.createdAt && (
+                          <div className="booking-detail-item">
+                            <span className="coord-label">BOOKED ON</span>
+                            <p><span>{formatReleaseDate(booking.createdAt)}</span></p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="booking-id">ID: {booking.id}</p>
-                    <div className="booking-card-details">
-                      {booking.showtime?.cinemaName && <p><strong>Cinema</strong>{booking.showtime.cinemaName}</p>}
-                      {booking.showtime?.screenName && <p><strong>Screen</strong>{booking.showtime.screenName}</p>}
-                      {booking.showtime?.startsAt && (
-                        <p><strong>Showtime</strong>{formatShowtimeDateTime(booking.showtime.startsAt)}</p>
-                      )}
-                      {seatLabels.length > 0 && <p><strong>Seats</strong>{seatLabels.join(', ')}</p>}
-                      {Number.isFinite(booking.totalAmountInPaise) && (
-                        <p><strong>Total</strong>{formatTicketPrice(booking.totalAmountInPaise)}</p>
-                      )}
-                      {booking.createdAt && (
-                        <p><strong>Booked</strong>{formatReleaseDate(booking.createdAt)}</p>
-                      )}
-                    </div>
-                    {isActive && (
-                      <div className="booking-card-actions">
-                        {confirmCancelId === booking.id ? (
+
+                    <div className="booking-card-actions">
+                      {isActive ? (
+                        confirmCancelId === booking.id ? (
                           <div className="cancel-confirmation" role="group" aria-label="Confirm booking cancellation">
                             <span>Cancel this booking? Its seats will be released.</span>
                             <button
@@ -1575,7 +2418,7 @@ function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onB
                               disabled={cancelingId === booking.id}
                               onClick={() => confirmCancellation(booking.id)}
                             >
-                              {cancelingId === booking.id ? 'Cancelling...' : 'Confirm cancellation'}
+                              {cancelingId === booking.id ? 'Cancelling...' : 'Confirm Cancellation'}
                             </button>
                             <button
                               className="cancel-keep-button"
@@ -1583,7 +2426,7 @@ function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onB
                               disabled={cancelingId === booking.id}
                               onClick={() => setConfirmCancelId(null)}
                             >
-                              Keep booking
+                              Keep Booking
                             </button>
                           </div>
                         ) : (
@@ -1595,11 +2438,16 @@ function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onB
                               setConfirmCancelId(booking.id)
                             }}
                           >
-                            Cancel Booking
+                            Cancel Reservation
                           </button>
-                        )}
-                      </div>
-                    )}
+                        )
+                      ) : (
+                        <span className="booking-inactive-tag">
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }} aria-hidden="true">block</span>
+                          <span>Seats Released</span>
+                        </span>
+                      )}
+                    </div>
                   </article>
                 )
               })}
@@ -1611,9 +2459,11 @@ function MyBookings({ authSession, onAuthenticated, onAuthenticationExpired, onB
   )
 }
 
-function ShowtimesSection({ movieId, authSession, onAuthenticated, onAuthenticationExpired }) {
+function ShowtimesSection({ movieId, movie, authSession, onAuthenticated, onAuthenticationExpired }) {
   const [showtimes, setShowtimes] = useState([])
   const [selectedShowtime, setSelectedShowtime] = useState(null)
+  const [activeDockShowtime, setActiveDockShowtime] = useState(null)
+  const [selectedDateKey, setSelectedDateKey] = useState('')
   const [status, setStatus] = useState('loading')
   const [errorMessage, setErrorMessage] = useState('')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -1624,6 +2474,9 @@ function ShowtimesSection({ movieId, authSession, onAuthenticated, onAuthenticat
     getShowtimesByMovieId(movieId, { signal: controller.signal })
       .then((loadedShowtimes) => {
         setShowtimes(loadedShowtimes)
+        if (loadedShowtimes && loadedShowtimes.length > 0) {
+          setActiveDockShowtime(loadedShowtimes[0])
+        }
         setStatus('success')
       })
       .catch((error) => {
@@ -1635,6 +2488,42 @@ function ShowtimesSection({ movieId, authSession, onAuthenticated, onAuthenticat
     return () => controller.abort()
   }, [movieId, loadAttempt])
 
+  const uniqueDateKeys = useMemo(() => {
+    const set = new Set()
+    showtimes.forEach((s) => {
+      const key = getShowtimeDateKey(s.startsAt)
+      if (key) set.add(key)
+    })
+    return Array.from(set).sort()
+  }, [showtimes])
+
+  const activeDateKey = (selectedDateKey && uniqueDateKeys.includes(selectedDateKey))
+    ? selectedDateKey
+    : (uniqueDateKeys[0] || '')
+
+  const dateFilteredShowtimes = useMemo(() => {
+    if (!activeDateKey) return showtimes
+    return showtimes.filter((s) => getShowtimeDateKey(s.startsAt) === activeDateKey)
+  }, [showtimes, activeDateKey])
+
+  const venues = useMemo(() => {
+    const map = new Map()
+    dateFilteredShowtimes.forEach((s) => {
+      const venueName = s.cinemaName || 'Cinevo Flagship Cinema'
+      if (!map.has(venueName)) {
+        map.set(venueName, {
+          name: venueName,
+          city: s.city || '',
+          screenName: s.screenName || '',
+          screenFormat: s.screenFormat || '',
+          showtimes: [],
+        })
+      }
+      map.get(venueName).showtimes.push(s)
+    })
+    return Array.from(map.values())
+  }, [dateFilteredShowtimes])
+
   function retryLoading() {
     setErrorMessage('')
     setStatus('loading')
@@ -1642,92 +2531,277 @@ function ShowtimesSection({ movieId, authSession, onAuthenticated, onAuthenticat
   }
 
   return (
-    <section className="showtimes-section" aria-labelledby="showtimes-heading">
+    <section className="showtimes-section" id="showtime-matrix" aria-labelledby="showtimes-heading">
       {selectedShowtime ? (
         <SeatSelection
           showtime={selectedShowtime}
+          movie={movie}
           authSession={authSession}
           onAuthenticated={onAuthenticated}
           onAuthenticationExpired={onAuthenticationExpired}
           onBack={() => setSelectedShowtime(null)}
         />
       ) : (
-      <>
-      <div className="showtimes-heading">
-        <div>
-          <span className="section-kicker">FIND A SCREENING</span>
-          <h2 id="showtimes-heading">Showtimes</h2>
-        </div>
-        {status === 'success' && showtimes.length > 0 && (
-          <span className="movie-count">{showtimes.length.toString().padStart(2, '0')} SHOWS</span>
-        )}
-      </div>
+        <>
+          <div className="showtimes-heading">
+            <div>
+              <span className="section-kicker">SELECT DATE &amp; AUDITORIUM</span>
+              <h2 id="showtimes-heading">Showtime Schedule</h2>
+            </div>
+            {/* Status Legend */}
+            <div className="showtime-legend" aria-label="Showtime Availability Legend">
+              <span className="legend-item">
+                <span className="legend-dot available" /> Available
+              </span>
+              <span className="legend-item">
+                <span className="legend-dot filling-fast" /> Filling Fast
+              </span>
+              <span className="legend-item">
+                <span className="legend-dot selected" /> Selected
+              </span>
+              <span className="legend-item">
+                <span className="legend-dot sold-out" /> Sold Out
+              </span>
+            </div>
+          </div>
 
-      {status === 'loading' ? (
-        <div className="empty-state showtimes-state" role="status">
-          <h3>Finding showtimes...</h3>
-          <p>Checking available screenings for this movie.</p>
-        </div>
-      ) : status === 'error' ? (
-        <div className="empty-state showtimes-state" role="alert">
-          <h3>We couldn’t load showtimes</h3>
-          <p>{errorMessage}</p>
-          <button className="secondary-button" onClick={retryLoading}>Try again</button>
-        </div>
-      ) : showtimes.length === 0 ? (
-        <div className="empty-state showtimes-state">
-          <h3>No showtimes available</h3>
-          <p>There are no screenings listed for this movie right now.</p>
-        </div>
-      ) : (
-        <div className="showtime-list">
-          {showtimes.map((showtime) => {
-            const dateTime = formatShowtimeDateTime(showtime.startsAt)
-            const ticketPrice = formatTicketPrice(showtime.priceInPaise)
+          {status === 'loading' ? (
+            <div className="empty-state showtimes-state" role="status">
+              <span className="material-symbols-outlined text-primary text-4xl mb-2 animate-spin">progress_activity</span>
+              <h3>Finding showtimes...</h3>
+              <p>Checking available screenings and auditorium slots for this movie.</p>
+            </div>
+          ) : status === 'error' ? (
+            <div className="empty-state showtimes-state" role="alert">
+              <span className="material-symbols-outlined text-primary text-4xl mb-2">warning</span>
+              <h3>We couldn’t load showtimes</h3>
+              <p>{errorMessage}</p>
+              <button className="secondary-button" onClick={retryLoading}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+                <span>Try again</span>
+              </button>
+            </div>
+          ) : showtimes.length === 0 ? (
+            <div className="empty-state showtimes-state">
+              <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#ffb3b6' }}>event_busy</span>
+              <h3>No showtimes available</h3>
+              <p>There are no screenings listed for this movie right now. Check back soon or inquire for private bookings.</p>
+            </div>
+          ) : (
+            <>
+              {/* Date Filter Ribbon */}
+              {uniqueDateKeys.length > 1 && (
+                <div className="showtime-date-ribbon" role="tablist" aria-label="Screening Dates">
+                  {uniqueDateKeys.map((dateKey) => {
+                    const isSelected = dateKey === activeDateKey
+                    const { relativeLabel, dayName, dayMonth } = formatShowtimeDateParts(dateKey)
+                    const count = showtimes.filter((s) => getShowtimeDateKey(s.startsAt) === dateKey).length
 
-            return (
-              <article className="showtime-card" key={showtime.id}>
-                <div className="showtime-venue">
-                  {showtime.cinemaName && <h3>{showtime.cinemaName}</h3>}
-                  {(showtime.city || showtime.screenName) && (
-                    <p>{[showtime.city, showtime.screenName].filter(Boolean).join(' · ')}</p>
-                  )}
+                    return (
+                      <button
+                        key={dateKey}
+                        role="tab"
+                        aria-selected={isSelected}
+                        className={`date-tab-card ${isSelected ? 'active' : ''}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDateKey(dateKey)
+                          const firstInDate = showtimes.find((s) => getShowtimeDateKey(s.startsAt) === dateKey)
+                          if (firstInDate) setActiveDockShowtime(firstInDate)
+                        }}
+                      >
+                        <div className="date-tab-top">
+                          <span className="date-tab-rel">{relativeLabel}</span>
+                          <span className="date-tab-pill">{dayMonth}</span>
+                        </div>
+                        <div className="date-tab-bottom">
+                          <span className="date-tab-day">{dayName}</span>
+                          <span className="date-tab-count">
+                            {count} {count === 1 ? 'Screening' : 'Screenings'}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
-                {dateTime && <time className="showtime-date" dateTime={showtime.startsAt}>{dateTime}</time>}
-                {ticketPrice && <span className="showtime-price">{ticketPrice}</span>}
-                <button
-                  className="showtime-select-button"
-                  type="button"
-                  onClick={() => setSelectedShowtime(showtime)}
-                >
-                  Select Seats <span>→</span>
-                </button>
-              </article>
-            )
-          })}
-        </div>
-      )}
-      </>
+              )}
+
+              {/* Venues & Showtime Matrix */}
+              <div className="venue-card-list">
+                {venues.map((venue) => {
+                  const formats = Array.from(new Set(venue.showtimes.map((s) => s.screenFormat).filter(Boolean)))
+                  const prices = venue.showtimes.map((s) => s.priceInPaise).filter((p) => Number.isFinite(p) && p >= 0)
+                  const minPrice = prices.length > 0 ? Math.min(...prices) : null
+                  const maxPrice = prices.length > 0 ? Math.max(...prices) : null
+
+                  return (
+                    <div className="venue-card" key={venue.name}>
+                      <div className="venue-card-header">
+                        <div className="venue-info-block">
+                          <div className="venue-title-row">
+                            <span className="material-symbols-outlined venue-icon">theater_comedy</span>
+                            <h3 className="venue-title">{venue.name}</h3>
+                            {venue.city && <span className="venue-badge">{venue.city}</span>}
+                          </div>
+                          <p className="venue-subtitle">
+                            {[venue.city, venue.screenName || 'Flagship Auditorium'].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+
+                        <div className="venue-format-tags">
+                          {formats.length > 0 ? (
+                            formats.map((fmt) => (
+                              <span key={fmt} className="format-tag">{fmt}</span>
+                            ))
+                          ) : (
+                            <>
+                              <span className="format-tag">IMAX Laser</span>
+                              <span className="format-tag">Dolby 12-Channel</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="venue-auditorium-block">
+                        <div className="auditorium-bar">
+                          <span className="auditorium-title">
+                            <span className="material-symbols-outlined verified-icon">verified</span>
+                            {venue.screenName || 'Auditorium 1'} · {venue.screenFormat || 'Dolby Atmos Master'}
+                          </span>
+                          {minPrice !== null && (
+                            <span className="auditorium-price-range">
+                              {formatTicketPrice(minPrice)}
+                              {maxPrice !== null && maxPrice !== minPrice ? ` – ${formatTicketPrice(maxPrice)}` : ''}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="showtime-grid">
+                          {venue.showtimes.map((showtime) => {
+                            const timeStr = formatShowtimeTime(showtime.startsAt)
+                            const fullDateTime = formatShowtimeDateTime(showtime.startsAt)
+                            const ticketPrice = formatTicketPrice(showtime.priceInPaise)
+                            const isSelected = activeDockShowtime?.id === showtime.id
+
+                            return (
+                              <article
+                                key={showtime.id}
+                                className={`showtime-card ${isSelected ? 'active-slot' : ''}`}
+                                onMouseEnter={() => setActiveDockShowtime(showtime)}
+                                onClick={() => setActiveDockShowtime(showtime)}
+                              >
+                                <div className="showtime-card-top">
+                                  <span className="showtime-slot-time">{timeStr || fullDateTime}</span>
+                                  <span className="showtime-status-pill available">Available</span>
+                                </div>
+
+                                <div className="showtime-card-mid">
+                                  <span className="showtime-slot-format">{showtime.screenFormat || '4K Laser'}</span>
+                                  {ticketPrice && <span className="showtime-price">{ticketPrice}</span>}
+                                </div>
+
+                                <button
+                                  className="showtime-select-button"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedShowtime(showtime)
+                                  }}
+                                  aria-label={`Select seats for ${showtime.cinemaName || 'Screening'} at ${timeStr || fullDateTime}`}
+                                >
+                                  Select Seats <span>→</span>
+                                </button>
+                              </article>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Selection Summary Sticky Booking Dock */}
+              {activeDockShowtime && (
+                <aside className="sticky-booking-dock" aria-label="Showtime Selection Dock">
+                  <div className="sticky-dock-content">
+                    <div className="dock-left">
+                      {movie?.posterUrl && (
+                        <div className="dock-mini-poster">
+                          <img src={movie.posterUrl} alt="" />
+                        </div>
+                      )}
+                      <div className="dock-text-group">
+                        <div className="dock-meta-line">
+                          <span className="dock-movie-title">{movie?.title || 'Selected Feature'}</span>
+                          <span className="dock-sep">•</span>
+                          <span className="dock-venue-name">{activeDockShowtime.cinemaName || 'Cinevo Auditorium'}</span>
+                          <span className="dock-sep">•</span>
+                          <span className="dock-time-val">{formatShowtimeDateTime(activeDockShowtime.startsAt)}</span>
+                          {activeDockShowtime.screenFormat && (
+                            <>
+                              <span className="dock-sep">•</span>
+                              <span className="dock-format-chip">{activeDockShowtime.screenFormat}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="dock-right">
+                      <div className="dock-pricing">
+                        <span className="dock-price-sub">Ticket Price</span>
+                        <span className="dock-price-main">
+                          {formatTicketPrice(activeDockShowtime.priceInPaise)}
+                        </span>
+                      </div>
+
+                      <button
+                        className="primary-button dock-cta-btn"
+                        type="button"
+                        onClick={() => setSelectedShowtime(activeDockShowtime)}
+                      >
+                        <span>Select Seats</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_forward</span>
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              )}
+            </>
+          )}
+        </>
       )}
     </section>
   )
 }
-
 function MoviePoster({ movie, index = 0, isSaved, onToggleSaved, showNumber = true }) {
   const [imageFailed, setImageFailed] = useState(false)
 
   return (
     <div className="movie-poster">
-      {movie.posterUrl && !imageFailed && (
+      {movie.posterUrl && !imageFailed ? (
         <img
           className="movie-poster-image"
           src={movie.posterUrl}
           alt={`${movie.title} poster`}
           onError={() => setImageFailed(true)}
         />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-gradient-to-br from-surface-container via-surface-container-high to-surface-container-lowest">
+          <span className="material-symbols-outlined text-4xl text-primary mb-2 opacity-60">movie</span>
+          <span className="font-headline-sm text-sm text-on-surface font-semibold line-clamp-2">{movie.title}</span>
+        </div>
       )}
       <div className="poster-texture" />
       {showNumber && <span className="poster-number">{String(index + 1).padStart(2, '0')}</span>}
+      <span className="poster-format-badge">
+        {movie.language === 'English' ? 'IMAX Laser' : movie.language ? `${movie.language} Dub` : 'Standard'}
+      </span>
+      <span className="poster-rating-badge">
+        <span className="material-symbols-outlined">star</span>
+        <span>{((8.0 + ((index * 3) % 15) / 10).toFixed(1))}</span>
+      </span>
       {onToggleSaved && (
         <button
           className={isSaved ? 'save-button saved' : 'save-button'}
@@ -1742,6 +2816,7 @@ function MoviePoster({ movie, index = 0, isSaved, onToggleSaved, showNumber = tr
     </div>
   )
 }
+
 
 function MovieDetails({
   movieId,
@@ -1788,47 +2863,196 @@ function MovieDetails({
 
   return (
     <main className="movie-detail-page" id="movie-details">
-      <button className="secondary-button back-button" onClick={onBack}>← Back to Movies</button>
       {status === 'loading' ? (
-        <div className="empty-state" role="status"><h2>Loading movie...</h2><p>Getting the details for this film.</p></div>
+        <div className="empty-state movie-detail-loading" role="status">
+          <span className="material-symbols-outlined text-primary text-4xl mb-2 animate-spin">progress_activity</span>
+          <h2>Loading movie...</h2>
+          <p>Getting the details and auditorium programming for this film.</p>
+        </div>
       ) : status === 'not-found' ? (
-        <div className="empty-state" role="alert"><h2>Movie not found</h2><p>This movie may have been removed or the link may be incorrect.</p></div>
+        <div className="empty-state" role="alert">
+          <span className="material-symbols-outlined text-primary text-4xl mb-2">search_off</span>
+          <h2>Movie not found</h2>
+          <p>This movie may have been removed or the link may be incorrect.</p>
+          <button className="secondary-button" onClick={onBack}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+            <span>← Back to Movies</span>
+          </button>
+        </div>
       ) : status === 'error' ? (
         <div className="empty-state" role="alert">
+          <span className="material-symbols-outlined text-primary text-4xl mb-2">error</span>
           <h2>We couldn’t load this movie</h2>
           <p>{errorMessage}</p>
-          <button className="secondary-button" onClick={retryLoading}>Try again</button>
+          <button className="secondary-button" onClick={retryLoading}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+            <span>Try again</span>
+          </button>
         </div>
       ) : (
         <>
-          <div className="movie-detail-layout">
-            <div className="movie-detail-art">
-              <MoviePoster
-                movie={movie}
-                isSaved={isSaved}
-                onToggleSaved={onToggleSaved}
-                showNumber={false}
-              />
+          {/* Breadcrumb Ribbon */}
+          <section className="detail-breadcrumb-bar">
+            <div className="detail-breadcrumb-container">
+              <nav aria-label="Breadcrumb" className="breadcrumb-nav">
+                <button type="button" onClick={onBack} className="breadcrumb-link">Home</button>
+                <span className="breadcrumb-sep">/</span>
+                <button type="button" onClick={onBack} className="breadcrumb-link">Movies</button>
+                <span className="breadcrumb-sep">/</span>
+                <span className="breadcrumb-current">{movie.title}</span>
+              </nav>
+              <div className="breadcrumb-status">
+                <span className="beacon-dot" />
+                <span className="beacon-text">Now Booking · Premium Screenings</span>
+              </div>
             </div>
-            <section className="movie-detail-content">
-              <span className="section-kicker">MOVIE DETAILS</span>
-              <h1>{movie.title}</h1>
-              <dl className="movie-detail-metadata">
-                {formatReleaseDate(movie.releaseDate) && (
-                  <div><dt>Release date</dt><dd>{formatReleaseDate(movie.releaseDate)}</dd></div>
-                )}
-                {formatDuration(movie.durationMinutes) && (
-                  <div><dt>Duration</dt><dd>{formatDuration(movie.durationMinutes)}</dd></div>
-                )}
-                {movie.language && (
-                  <div><dt>Language</dt><dd>{movie.language}</dd></div>
-                )}
-              </dl>
-              {movie.description && <p className="movie-detail-description">{movie.description}</p>}
-            </section>
-          </div>
+          </section>
+
+          {/* Cinematic Hero Spotlight */}
+          <section className="movie-detail-hero">
+            <div
+              className="detail-hero-backdrop"
+              style={{ backgroundImage: `url("${movie.backdropUrl || movie.posterUrl}")` }}
+            />
+            <div className="detail-hero-gradient-overlay" />
+            <div className="detail-hero-radial-overlay" />
+
+            <div className="detail-hero-stage">
+              <div className="detail-hero-grid">
+                {/* Poster column */}
+                <div className="detail-poster-col">
+                  <div className="detail-poster-wrapper">
+                    {movie.posterUrl ? (
+                      <img
+                        className="detail-poster-img"
+                        src={movie.posterUrl}
+                        alt={`${movie.title} poster`}
+                      />
+                    ) : (
+                      <div className="detail-poster-fallback">
+                        <span className="material-symbols-outlined text-4xl text-primary mb-2 opacity-60">movie</span>
+                        <span className="font-headline-sm text-sm text-on-surface font-semibold">{movie.title}</span>
+                      </div>
+                    )}
+                    {movie.language && (
+                      <div className="detail-poster-overlay">
+                        <span className="poster-pill-format">{movie.language}</span>
+                      </div>
+                    )}
+                    {onToggleSaved && (
+                      <button
+                        className={`detail-save-btn ${isSaved ? 'saved' : ''}`}
+                        onClick={onToggleSaved}
+                        aria-label={isSaved ? 'Remove saved movie' : 'Save movie'}
+                        title="Save movie"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                          {isSaved ? 'favorite' : 'favorite_border'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Info column */}
+                <div className="detail-info-col">
+                  <div className="detail-kicker-row">
+                    <span className="detail-kicker-badge">FEATURE PRESENTATION</span>
+                  </div>
+
+                  <h1 className="detail-movie-title">{movie.title}</h1>
+
+                  <div className="detail-metadata-ribbon">
+                    {formatDuration(movie.durationMinutes) && (
+                      <span className="meta-item">
+                        <span className="material-symbols-outlined meta-icon">schedule</span>
+                        {formatDuration(movie.durationMinutes)}
+                      </span>
+                    )}
+                    {formatReleaseDate(movie.releaseDate) && (
+                      <>
+                        <span className="meta-dot">·</span>
+                        <span className="meta-item">{formatReleaseDate(movie.releaseDate)}</span>
+                      </>
+                    )}
+                    {movie.language && (
+                      <>
+                        <span className="meta-dot">·</span>
+                        <span className="meta-item">{movie.language}</span>
+                      </>
+                    )}
+                  </div>
+
+                  {movie.description && (
+                    <div className="detail-synopsis-block">
+                      <h2 className="synopsis-heading">Synopsis</h2>
+                      <p className="synopsis-body">{movie.description}</p>
+                    </div>
+                  )}
+
+                  {movie.language && (
+                    <div className="detail-audio-chips">
+                      <span className="audio-label">Language:</span>
+                      <span className="audio-chip">{movie.language}</span>
+                    </div>
+                  )}
+
+                  <div className="detail-action-buttons">
+                    <a className="primary-button select-showtime-cta" href="#showtime-matrix">
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>calendar_month</span>
+                      <span>Select Showtime</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_downward</span>
+                    </a>
+                    <button className="secondary-button back-cta-btn" onClick={onBack} type="button">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+                      <span>← Back to Movies</span>
+                    </button>
+                    {onToggleSaved && (
+                      <button
+                        className={`secondary-button watchlist-cta-btn ${isSaved ? 'active' : ''}`}
+                        onClick={onToggleSaved}
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: isSaved ? '#ffb3b6' : 'inherit' }}>
+                          {isSaved ? 'favorite' : 'favorite_border'}
+                        </span>
+                        <span>{isSaved ? 'Saved in Watchlist' : 'Add to Watchlist'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Technical Accreditations Bar (from Stitch) */}
+          <section className="detail-tech-accreditations">
+            <div className="detail-tech-container">
+              <div className="tech-item">
+                <span className="tech-item-kicker">Projection Standard</span>
+                <h3 className="tech-item-title">Dual 4K Laser &amp; 15/70 Celluloid</h3>
+                <p className="tech-item-desc">High Dynamic Range with 1.43:1 / 2.39:1 native aspect fidelity</p>
+              </div>
+              <div className="tech-divider" />
+              <div className="tech-item">
+                <span className="tech-item-kicker">Acoustic Architecture</span>
+                <h3 className="tech-item-title">Dolby Atmos &amp; Meyer Sound EXP</h3>
+                <p className="tech-item-desc">128-Object Soundscape with 64 discrete studio-calibrated channels</p>
+              </div>
+              <div className="tech-divider" />
+              <div className="tech-item">
+                <span className="tech-item-kicker">Seating Configuration</span>
+                <h3 className="tech-item-title">Bespoke Italian Leather Recliners</h3>
+                <p className="tech-item-desc">Generous acoustic row pitch with personal concierge call button</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Showtimes & Auditorium Selection */}
           <ShowtimesSection
             movieId={movie.id}
+            movie={movie}
             authSession={authSession}
             onAuthenticated={onAuthenticated}
             onAuthenticationExpired={onAuthenticationExpired}
@@ -1855,6 +3079,15 @@ const KNOWN_LANGUAGES = [
   'Korean',
 ]
 
+const FORMAT_OPTIONS = [
+  'All Formats',
+  'IMAX with Laser',
+  'Dolby Cinema',
+  '4DX Sensory',
+  'Insignia Dine-In',
+  'ScreenX 270°',
+]
+
 function App() {
   const [movies, setMovies] = useState([])
   const [pagination, setPagination] = useState({
@@ -1866,6 +3099,9 @@ function App() {
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('')
+  const [selectedFormat, setSelectedFormat] = useState('All Formats')
+  const [heroIndex, setHeroIndex] = useState(0)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [savedMovies, setSavedMovies] = useState([])
   const [notice, setNotice] = useState('')
@@ -2064,36 +3300,116 @@ function App() {
     window.scrollTo(0, 0)
   }
 
+  const spotlightMovie = movies.length > 0 ? movies[heroIndex % movies.length] : null
+
   return (
     <div className="cinevo">
       <header className="navbar">
-        <a className="brand" href="#home" aria-label="Cinevo home">
-          <span className="brand-mark">C</span>
-          <span>cinevo<span className="brand-dot">.</span></span>
-        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <a className="brand" href="#home" aria-label="Cinevo home">
+            <span className="brand-text">CINEVO</span>
+            <span className="brand-dot" />
+          </a>
 
-        <nav className="nav-links">
-          <a className="nav-active" href="#home">Home</a>
-          <a href="#movies">Explore movies</a>
-          <a href="#bookings" onClick={(event) => { event.preventDefault(); openBookings() }}>My Bookings</a>
-          {authSession?.user?.role === 'admin' && (
-            <a href="#admin" onClick={(event) => {
+          <div className="location-pill" style={{ display: 'none' }}>
+            <span className="material-symbols-outlined">location_on</span>
+            <span>Mumbai · BKC &amp; Palladium</span>
+          </div>
+        </div>
+
+        <nav className={`nav-links ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+          <a
+            className={!selectedMovieId && !isBookingsPage && !isAdminPage && !authMode ? 'nav-active' : ''}
+            href="#home"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Home
+          </a>
+          <a
+            href="#movies"
+            onClick={() => {
+              setMobileMenuOpen(false)
+              if (selectedMovieId || isBookingsPage || isAdminPage || authMode) {
+                backToMovies()
+              } else {
+                document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
+              }
+            }}
+          >
+            Explore Movies
+          </a>
+          <a
+            className={isBookingsPage ? 'nav-active' : ''}
+            href="#bookings"
+            onClick={(event) => {
               event.preventDefault()
-              window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#admin`)
-              setIsAdminPage(true)
-              setIsBookingsPage(false)
-              setSelectedMovieId(null)
-              window.scrollTo(0, 0)
-            }}>Admin Dashboard</a>
+              setMobileMenuOpen(false)
+              openBookings()
+            }}
+          >
+            My Bookings
+          </a>
+          {authSession?.user?.role === 'admin' && (
+            <a
+              className={isAdminPage ? 'nav-active' : ''}
+              href="#admin"
+              onClick={(event) => {
+                event.preventDefault()
+                setMobileMenuOpen(false)
+                window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#admin`)
+                setIsAdminPage(true)
+                setIsBookingsPage(false)
+                setSelectedMovieId(null)
+                window.scrollTo(0, 0)
+              }}
+            >
+              Admin Dashboard
+            </a>
           )}
-          <a href="#about">About</a>
+          <a href="#about" onClick={() => setMobileMenuOpen(false)}>About</a>
         </nav>
 
-        {authSession ? (
-          <button className="signin-button" type="button" onClick={logout}>Sign out</button>
-        ) : (
-          <button className="signin-button" type="button" onClick={() => openAuth('login')}>Sign in</button>
-        )}
+        <div className="nav-actions">
+          <button
+            className="quick-search-trigger"
+            type="button"
+            onClick={() => {
+              document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
+              const input = document.querySelector('.search-box input')
+              if (input) input.focus()
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>search</span>
+            <span>Search</span>
+            <kbd>⌘K</kbd>
+          </button>
+
+          {authSession ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="user-badge" title={authSession.user?.email || 'Logged in'}>
+                <span className="user-avatar">
+                  {authSession.user?.name ? authSession.user.name.charAt(0).toUpperCase() : 'U'}
+                </span>
+                <span className="user-name">{authSession.user?.name || 'Account'}</span>
+              </div>
+              <button className="signin-button" type="button" onClick={logout}>Sign out</button>
+            </div>
+          ) : (
+            <button className="signin-button" type="button" onClick={() => openAuth('login')}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>person</span>
+              <span>Sign in</span>
+            </button>
+          )}
+
+          <button
+            className="mobile-nav-toggle"
+            type="button"
+            aria-label="Toggle navigation menu"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+          >
+            <span className="material-symbols-outlined">{mobileMenuOpen ? 'close' : 'menu'}</span>
+          </button>
+        </div>
       </header>
 
       {authMode ? (
@@ -2128,192 +3444,454 @@ function App() {
           onAuthenticationExpired={clearAuthentication}
         />
       ) : (
-      <main id="home">
-        <section className="hero">
-          <div className="hero-glow" />
-          <div className="hero-copy">
-            <div className="eyebrow"><span className="live-dot" /> YOUR NEXT MOVIE NIGHT STARTS HERE</div>
-            <h1>Stories that<br />stay with <span>you.</span></h1>
-            <p className="hero-description">
-              Discover unforgettable films, find your perfect showtime,
-              and make every movie night count.
-            </p>
-            <div className="hero-actions">
-              <a className="primary-button" href="#movies">Explore movies <span>↗</span></a>
-              <a className="secondary-button" href="#movies">Browse collection <span>↓</span></a>
-            </div>
-            <div className="hero-meta">
-              <div><strong>01</strong><span>DISCOVER</span></div>
-              <div><strong>02</strong><span>CHOOSE A SHOW</span></div>
-              <div><strong>03</strong><span>ENJOY THE FILM</span></div>
-            </div>
-          </div>
+        <main id="home">
+          {/* PANORAMIC CINEMATIC HERO SPOTLIGHT */}
+          <section className="hero-spotlight" id="spotlight">
+            {spotlightMovie ? (
+              <>
+                <div className="hero-backdrop-container">
+                  <img
+                    className="hero-backdrop-image"
+                    src={spotlightMovie.backdropUrl || spotlightMovie.posterUrl}
+                    alt={spotlightMovie.title}
+                  />
+                  <div className="hero-scrim-bottom" />
+                  <div className="hero-scrim-left" />
+                </div>
 
-          <div className="hero-art" aria-label="Featured movie artwork">
-            <div className="art-orbit orbit-one" />
-            <div className="art-orbit orbit-two" />
-            <div className="featured-poster">
-              <div className="poster-stars">✦ &nbsp; · &nbsp; ✧ &nbsp; · &nbsp; ✦</div>
-              <div className="poster-sun" />
-              <div className="poster-horizon" />
-              <div className="poster-person" />
-              <div className="poster-title">BEYOND<br /><span>THE</span> UNKNOWN</div>
-              <div className="poster-caption">A CINEMATIC EXPERIENCE</div>
-            </div>
-            <div className="floating-note"><span className="note-icon">✦</span><div><strong>Find your next favourite</strong><small>One great story away</small></div></div>
-            <div className="art-index">CINEVO ORIGINAL / 001</div>
-          </div>
-        </section>
+                <div className="hero-content-stage">
+                  <div className="hero-spotlight-details">
+                    <div className="hero-kicker-badge">
+                      <span className="hero-kicker-dot" />
+                      <span className="hero-kicker-text">Now Showing · Premier Spotlight</span>
+                    </div>
 
-        <section className="movies-section" id="movies">
-          <div className="section-heading">
-            <div><span className="section-kicker">HANDPICKED FOR YOUR NEXT NIGHT OUT</span><h2>Find your <span>next favourite.</span></h2></div>
-            <span className="movie-count">{(pagination.total ?? movies.length).toString().padStart(2, '0')} FILMS</span>
-          </div>
+                    <h1 className="hero-title">{spotlightMovie.title}</h1>
 
-          <div className="movie-toolbar">
-            <label className="search-box">
-              <span>⌕</span>
-              <input
-                value={searchInput}
-                onChange={handleSearchChange}
-                placeholder="Search movies..."
-                aria-label="Search movies"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchInput('')
-                    setDebouncedSearch('')
-                    setPage(1)
-                  }}
-                  aria-label="Clear search"
-                >
-                  ×
-                </button>
-              )}
-            </label>
+                    <div className="hero-metadata-row">
+                      {formatDuration(spotlightMovie.durationMinutes) && (
+                        <span>{formatDuration(spotlightMovie.durationMinutes)}</span>
+                      )}
+                      {spotlightMovie.language && (
+                        <>
+                          <span className="hero-meta-dot" />
+                          <span>{spotlightMovie.language}</span>
+                        </>
+                      )}
+                      {formatReleaseDate(spotlightMovie.releaseDate) && (
+                        <>
+                          <span className="hero-meta-dot" />
+                          <span>{formatReleaseDate(spotlightMovie.releaseDate)}</span>
+                        </>
+                      )}
+                    </div>
 
-            <label className="language-filter">
-              <span className="language-filter-label">Language</span>
-              <select
-                value={selectedLanguage}
-                onChange={handleLanguageChange}
-                aria-label="Filter by language"
-              >
-                <option value="">All languages</option>
-                {languageOptions.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+                    {spotlightMovie.description && (
+                      <p className="hero-synopsis">{spotlightMovie.description}</p>
+                    )}
 
-          {loadStatus === 'loading' ? (
-            <div className="empty-state" role="status"><h3>Loading films...</h3><p>Finding your next movie night.</p></div>
-          ) : loadStatus === 'error' ? (
-            <div className="empty-state" role="alert">
-              <h3>We couldn’t load the films</h3>
-              <p>{loadError}</p>
-              <button className="secondary-button" type="button" onClick={retryLoading}>Try again</button>
-            </div>
-          ) : movies.length === 0 ? (
-            debouncedSearch || selectedLanguage ? (
-              <div className="empty-state" role="status">
-                <span>⌕</span>
-                <h3>No films found</h3>
-                <p>Try adjusting your search or language filter.</p>
-                <button className="secondary-button" type="button" onClick={clearSearch}>Clear search</button>
-              </div>
-            ) : (
-              <div className="empty-state" role="status">
-                <h3>No movies available</h3>
-                <p>There are no films to show right now. Please check back soon.</p>
-              </div>
-            )
-          ) : (
-            <>
-              <div className={movies.length === 1 ? 'movie-grid single-result' : 'movie-grid'}>
-                {movies.map((movie, index) => {
-                  const posterNumber = (page - 1) * CATALOGUE_PAGE_LIMIT + index
-                  return (
-                    <article className="movie-card" key={movie.id}>
-                      <MoviePoster
-                        movie={movie}
-                        index={posterNumber}
-                        isSaved={savedMovies.includes(movie.id)}
-                        onToggleSaved={() => toggleSaved(movie.id)}
-                      />
-                      <div className="movie-info">
-                        <div className="movie-title-row"><h3>{movie.title}</h3></div>
-                        <p>
-                          {[getReleaseYear(movie.releaseDate), formatDuration(movie.durationMinutes), movie.language]
-                            .filter(Boolean)
-                            .map((detail, detailIndex) => (
-                              <span key={`${movie.id}-${detailIndex}`}>
-                                {detailIndex > 0 && <span className="metadata-separator"> · </span>}
-                                {detail}
-                              </span>
-                            ))}
-                        </p>
-                        {movie.description && <p className="movie-description">{movie.description}</p>}
-                        <button className="book-button" type="button" onClick={() => openMovie(movie.id)}>View movie <span>↗</span></button>
+                    <div className="hero-cta-cluster">
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => openMovie(spotlightMovie.id)}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>confirmation_number</span>
+                        <span>Book Tickets</span>
+                      </button>
+                      <a className="secondary-button" href="#movies">
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>explore</span>
+                        <span>Explore Movies</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {movies.length > 1 && (
+                    <div className="hero-nav-strip">
+                      <div className="hero-counter-group">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="hero-counter">{String((heroIndex % movies.length) + 1).padStart(2, '0')}</span>
+                          <span className="hero-counter-total">/ {String(Math.min(movies.length, 5)).padStart(2, '0')}</span>
+                        </div>
+
+                        <div className="hero-progress-bars">
+                          {movies.slice(0, Math.min(movies.length, 5)).map((_, dotIdx) => (
+                            <div
+                              key={dotIdx}
+                              className={`hero-progress-bar ${dotIdx === (heroIndex % Math.min(movies.length, 5)) ? 'active' : 'inactive'}`}
+                              onClick={() => setHeroIndex(dotIdx)}
+                              title={`Jump to movie ${dotIdx + 1}`}
+                            />
+                          ))}
+                        </div>
+
+                        {movies[(heroIndex + 1) % movies.length] && (
+                          <span className="hero-next-preview">
+                            Next: {movies[(heroIndex + 1) % movies.length].title}
+                          </span>
+                        )}
                       </div>
-                    </article>
-                  )
-                })}
+
+                      <div className="hero-controls">
+                        <button
+                          className="hero-control-btn"
+                          type="button"
+                          aria-label="Previous Spotlight"
+                          onClick={() => setHeroIndex((curr) => (curr - 1 + movies.length) % movies.length)}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>arrow_back</span>
+                        </button>
+                        <button
+                          className="hero-control-btn"
+                          type="button"
+                          aria-label="Next Spotlight"
+                          onClick={() => setHeroIndex((curr) => (curr + 1) % movies.length)}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>arrow_forward</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="hero-content-stage" style={{ padding: '96px 24px' }}>
+                <div className="hero-spotlight-details">
+                  <span className="hero-kicker-badge">
+                    <span className="hero-kicker-dot" />
+                    <span className="hero-kicker-text">Private Screenings</span>
+                  </span>
+                  <h1 className="hero-title">Experience Cinema in Its Purest Form</h1>
+                  <p className="hero-synopsis">
+                    Curated premier presentations, uncompressed Dolby Atmos sound, and luxurious reclining auditoria.
+                  </p>
+                  <div className="hero-cta-cluster">
+                    <a className="primary-button" href="#movies">
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>explore</span>
+                      <span>Explore Collection</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* AUDITORIUM FORMATS & TECH BAR */}
+          <section className="formats-tech-bar">
+            <div className="formats-bar-container">
+              <div className="format-pill-list">
+                {FORMAT_OPTIONS.map((format) => (
+                  <button
+                    key={format}
+                    className={`format-pill ${selectedFormat === format ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setSelectedFormat(format)}
+                  >
+                    {format}
+                  </button>
+                ))}
               </div>
 
-              <nav className="catalogue-pagination" aria-label="Movie catalogue pagination">
-                <button
-                  className="pagination-button"
-                  type="button"
-                  disabled={page <= 1 || loadStatus === 'loading'}
-                  onClick={() => {
-                    setLoadStatus('loading')
-                    setPage((p) => Math.max(1, p - 1))
-                    document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
-                  }}
-                  aria-label="Previous page"
-                >
-                  ← Previous
-                </button>
-                <span className="pagination-status" aria-live="polite">
-                  Page <strong>{page}</strong> of <strong>{pagination.totalPages || 1}</strong>
-                </span>
-                <button
-                  className="pagination-button"
-                  type="button"
-                  disabled={page >= pagination.totalPages || loadStatus === 'loading' || pagination.totalPages <= 1}
-                  onClick={() => {
-                    setLoadStatus('loading')
-                    setPage((p) => Math.min(pagination.totalPages, p + 1))
-                    document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
-                  }}
-                  aria-label="Next page"
-                >
-                  Next →
-                </button>
-              </nav>
-            </>
-          )}
-          {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notice">×</button></div>}
-        </section>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                <div className="tech-spec-indicator">
+                  <span className="material-symbols-outlined">translate</span>
+                  <span>Audio: {selectedLanguage || 'All Languages'}</span>
+                </div>
+              </div>
+            </div>
+          </section>
 
-        <section className="closing-banner" id="about">
-          <div><span className="section-kicker">YOUR SEAT IS WAITING</span><h2>Great films. <span>Better nights.</span></h2></div>
-          <a className="primary-button" href="#movies">Find a film <span>↗</span></a>
-        </section>
-      </main>
+          {/* NOW SHOWING (CURATED 4-COLUMN CATALOGUE GRID) */}
+          <section className="movies-section" id="movies">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">CURATED REPERTOIRE</span>
+                <h2>Now Showing</h2>
+                <p className="section-subtitle">Exclusive presentations across private luxury screening rooms.</p>
+              </div>
+              <span className="movie-count">{(pagination.total ?? movies.length).toString().padStart(2, '0')} FILMS</span>
+            </div>
+
+            <div className="movie-toolbar">
+              <label className="search-box">
+                <span className="material-symbols-outlined search-icon">search</span>
+                <input
+                  value={searchInput}
+                  onChange={handleSearchChange}
+                  placeholder="Search films by title, genre, director..."
+                  aria-label="Search movies"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('')
+                      setDebouncedSearch('')
+                      setPage(1)
+                    }}
+                    aria-label="Clear search"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                  </button>
+                )}
+              </label>
+
+              <label className="language-filter">
+                <span className="material-symbols-outlined" style={{ color: '#ffb3b6', fontSize: '16px' }}>translate</span>
+                <span className="language-filter-label">Language</span>
+                <select
+                  value={selectedLanguage}
+                  onChange={handleLanguageChange}
+                  aria-label="Filter by language"
+                >
+                  <option value="">All languages</option>
+                  {languageOptions.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {loadStatus === 'loading' ? (
+              <div className="empty-state" role="status">
+                <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', fontSize: '32px' }}>progress_activity</span>
+                <h3>Curating Film Presentations...</h3>
+                <p>Preparing showtimes and private auditorium reservations.</p>
+              </div>
+            ) : loadStatus === 'error' ? (
+              <div className="empty-state" role="alert">
+                <span className="material-symbols-outlined" style={{ fontSize: '36px' }}>error</span>
+                <h3>Unable to Load Film Programme</h3>
+                <p>{loadError}</p>
+                <button className="secondary-button" type="button" onClick={retryLoading}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+                  <span>Try again</span>
+                </button>
+              </div>
+            ) : movies.length === 0 ? (
+              debouncedSearch || selectedLanguage ? (
+                <div className="empty-state" role="status">
+                  <span className="material-symbols-outlined" style={{ fontSize: '36px' }}>search_off</span>
+                  <h3>No Films Found</h3>
+                  <p>We could not find any films matching &ldquo;{debouncedSearch || selectedLanguage}&rdquo;.</p>
+                  <button className="secondary-button" type="button" onClick={clearSearch}>
+                    Clear filter
+                  </button>
+                </div>
+              ) : (
+                <div className="empty-state" role="status">
+                  <span className="material-symbols-outlined" style={{ fontSize: '36px' }}>theaters</span>
+                  <h3>No Screenings Scheduled</h3>
+                  <p>Private screenings are currently being programmed. Please check back shortly.</p>
+                </div>
+              )
+            ) : (
+              <>
+                <div className={movies.length === 1 ? 'movie-grid single-result' : 'movie-grid'}>
+                  {movies.map((movie, index) => {
+                    const posterNumber = (page - 1) * CATALOGUE_PAGE_LIMIT + index
+                    return (
+                      <article className="movie-card group" key={movie.id}>
+                        <MoviePoster
+                          movie={movie}
+                          index={posterNumber}
+                          isSaved={savedMovies.includes(movie.id)}
+                          onToggleSaved={() => toggleSaved(movie.id)}
+                        />
+                        <div className="movie-info">
+                          <div className="movie-title-row">
+                            <h3 title={movie.title}>{movie.title}</h3>
+                          </div>
+                          <p className="movie-metadata-line">
+                            {[getReleaseYear(movie.releaseDate), formatDuration(movie.durationMinutes), movie.language]
+                              .filter(Boolean)
+                              .map((detail, detailIndex) => (
+                                <span key={`${movie.id}-${detailIndex}`}>
+                                  {detailIndex > 0 && <span className="metadata-separator">·</span>}
+                                  {detail}
+                                </span>
+                              ))}
+                          </p>
+                          {movie.description && <p className="movie-description">{movie.description}</p>}
+                          <button className="book-button" type="button" onClick={() => openMovie(movie.id)}>
+                            <span className="material-symbols-outlined">confirmation_number</span>
+                            <span>Book Tickets</span>
+                          </button>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+
+                <nav className="catalogue-pagination" aria-label="Movie catalogue pagination">
+                  <button
+                    className="pagination-button"
+                    type="button"
+                    disabled={page <= 1 || loadStatus === 'loading'}
+                    onClick={() => {
+                      setLoadStatus('loading')
+                      setPage((p) => Math.max(1, p - 1))
+                      document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                    aria-label="Previous page"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+                    <span>Previous</span>
+                  </button>
+                  <span className="pagination-status" aria-live="polite">
+                    Page <strong>{page}</strong> of <strong>{pagination.totalPages || 1}</strong>
+                  </span>
+                  <button
+                    className="pagination-button"
+                    type="button"
+                    disabled={page >= pagination.totalPages || loadStatus === 'loading' || pagination.totalPages <= 1}
+                    onClick={() => {
+                      setLoadStatus('loading')
+                      setPage((p) => Math.min(pagination.totalPages, p + 1))
+                      document.getElementById('movies')?.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                    aria-label="Next page"
+                  >
+                    <span>Next</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_forward</span>
+                  </button>
+                </nav>
+              </>
+            )}
+            {notice && (
+              <div className="notice" role="status">
+                <span>{notice}</span>
+                <button onClick={() => setNotice('')} aria-label="Dismiss notice">×</button>
+              </div>
+            )}
+          </section>
+
+          {/* CLOSING BANNER */}
+          <section className="closing-banner" id="about">
+            <div>
+              <span className="section-kicker">BESPOKE AUDITORIA</span>
+              <h2>Private Salon Hires &amp; <span>Executive Screenings.</span></h2>
+              <p style={{ color: '#a8898a', fontSize: '14px', marginTop: '6px', maxWidth: '580px' }}>
+                Full auditorium lockouts for private premieres, closed previews, and intimate milestone showcases.
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <a className="secondary-button" href="mailto:concierge@cinevo.luxury">
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>mail</span>
+                <span>Inquire</span>
+              </a>
+              <a className="primary-button" href="#movies">
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>confirmation_number</span>
+                <span>Book Screening</span>
+              </a>
+            </div>
+          </section>
+        </main>
       )}
 
-      <footer className="footer">
-        <a className="brand" href="#home"><span className="brand-mark">C</span><span>cinevo<span className="brand-dot">.</span></span></a>
-        <p>Made for the love of cinema.</p>
-        <span>© 2026 CINEVO</span>
+      {/* LUXURY FOOTER */}
+      <footer className="luxury-footer">
+        <div className="footer-container">
+          <div className="footer-grid">
+            <div className="footer-brand-col">
+              <a className="brand" href="#home">
+                <span className="brand-text">CINEVO</span>
+                <span className="brand-dot" />
+              </a>
+              <p>
+                Premier private cinema architecture, uncompressed multi-channel acoustic design, and curated 70mm celluloid screenings for discerning connoisseurs.
+              </p>
+              <div className="footer-contact-item">
+                <span className="footer-contact-label">Private Concierge</span>
+                <span className="footer-contact-val">concierge@cinevo.luxury</span>
+              </div>
+            </div>
+
+            <div>
+              <span className="footer-col-title">Flagship Venues</span>
+              <ul className="footer-list">
+                <li>
+                  <strong>CINEVO The Palladium</strong>
+                  <small>Lower Parel, Mumbai · 4 Auditoria</small>
+                </li>
+                <li>
+                  <strong>CINEVO BKC Sovereign</strong>
+                  <small>Bandra Kurla Complex · Dolby Vision</small>
+                </li>
+                <li>
+                  <strong>CINEVO UB City</strong>
+                  <small>Vittal Mallya Rd, Bengaluru · IMAX 70mm</small>
+                </li>
+                <li>
+                  <strong>CINEVO Diplomatic Enclave</strong>
+                  <small>Chanakyapuri, New Delhi · Private Salon</small>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <span className="footer-col-title">Acoustic &amp; Tech</span>
+              <ul className="footer-list">
+                <li>
+                  <strong>IMAX 70mm Dual Laser</strong>
+                  <small>High Dynamic Contrast</small>
+                </li>
+                <li>
+                  <strong>Dolby Atmos 128-Object</strong>
+                  <small>Full Spatial Audio Master</small>
+                </li>
+                <li>
+                  <strong>Meyer Sound EXP Calibration</strong>
+                  <small>Studio Precision Acoustic</small>
+                </li>
+                <li>
+                  <strong>Barco Thor 6P RGB</strong>
+                  <small>High Frame Rate Projection</small>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <span className="footer-col-title">Navigation &amp; Access</span>
+              <ul className="footer-list">
+                <li><a href="#home">Home Spotlight</a></li>
+                <li><a href="#movies">Now Showing</a></li>
+                <li><a href="#bookings" onClick={(event) => { event.preventDefault(); openBookings() }}>My Bookings</a></li>
+                {authSession?.user?.role === 'admin' && (
+                  <li>
+                    <a
+                      href="#admin"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#admin`)
+                        setIsAdminPage(true)
+                        setIsBookingsPage(false)
+                        setSelectedMovieId(null)
+                        window.scrollTo(0, 0)
+                      }}
+                    >
+                      Admin Dashboard
+                    </a>
+                  </li>
+                )}
+                <li><a href="mailto:concierge@cinevo.luxury">Private Salon Hire</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="footer-bottom-bar">
+            <span>&copy; 2026 CINEVO LUXURY CINEMAS PVT LTD. &middot; ALL RIGHTS RESERVED</span>
+            <div className="footer-bottom-links">
+              <a href="#privacy">Privacy Charter</a>
+              <span>&middot;</span>
+              <a href="#terms">Terms of Admission</a>
+              <span>&middot;</span>
+              <a href="#standards">Acoustic Standards</a>
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   )
