@@ -6,7 +6,7 @@ async function startServer() {
   try {
     await pool.query("SELECT 1");
 
-    app.listen(env.port, () => {
+    app.listen(env.port, "0.0.0.0", () => {
       console.log(`Cinevo is running on port ${env.port}`);
       console.log("Postgres connected successfully");
     });

@@ -14,12 +14,15 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-app.get("/api/health", (req, res) => {
+const handleHealthCheck = (req, res) => {
   res.json({
     success: true,
-    message: "Cinevo APi is running ",
+    message: "Cinevo API is running",
   });
-});
+};
+
+app.get("/health", handleHealthCheck);
+app.get("/api/health", handleHealthCheck);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/movies", movieRoutes);
