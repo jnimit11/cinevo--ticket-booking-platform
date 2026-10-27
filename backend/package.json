@@ -7,11 +7,12 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
-    "test:unit": "node --test tests/jwt-expiration-config.test.js tests/integer-bounds-validation.test.js tests/login-error-handling.test.js tests/movie-search-escape.test.js tests/health-check.test.js",
+    "test:unit": "node --test tests/jwt-expiration-config.test.js tests/integer-bounds-validation.test.js tests/login-error-handling.test.js tests/movie-search-escape.test.js tests/health-check.test.js tests/booking-concurrency-integrity.test.js tests/e2e-smoke.test.js",
     "test:concurrency": "node --test tests/showtime-concurrency.test.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "node scripts/seed-movies.js"
+    "db:seed": "node scripts/seed-movies.js",
+    "db:seed:all": "node scripts/seed-all.js"
   },
   "keywords": [],
   "author": "",

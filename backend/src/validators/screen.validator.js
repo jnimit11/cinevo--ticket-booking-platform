@@ -1,7 +1,1 @@
-import { z } from "zod";
-
-export const createScreenSchema = z.object({
-  cinemaId: z.uuid(),
-  name: z.string().trim().min(1).max(100),
-  totalSeats: z.number().int().min(1).max(1000),
-});
+export * from "../modules/screens/screen.validator.js";

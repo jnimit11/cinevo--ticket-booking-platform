@@ -32,21 +32,35 @@ cinevo/
 │   ├── drizzle.config.js    # Drizzle ORM migration configuration
 │   ├── package.json         # Backend scripts and dependencies
 │   ├── scripts/
-│   │   └── seed-movies.js   # 16-movie idempotent catalogue seeder
+│   │   ├── seed-movies.js   # 16-movie catalogue seeder
+│   │   └── seed-all.js      # Complete platform seeder (users, venues, screens, seats, showtimes)
 │   ├── src/
-│   │   ├── config/          # Environment configuration & JWT validation
-│   │   ├── controllers/     # Route controllers (movies, showtimes, bookings, etc.)
-│   │   ├── db/              # Database pool & Drizzle schema definitions
-│   │   ├── routes/          # Express route declarations
-│   │   ├── utils/           # Utilities (e.g., LIKE/ILIKE wildcard escaping)
-│   │   └── validators/      # Zod validation schemas
+│   │   ├── app.js           # Express app & domain router mounts
+│   │   ├── server.js        # Server bootstrap & DB health verification
+│   │   ├── core/            # System-wide infrastructure (config, db, middleware, utils)
+│   │   └── modules/         # Domain Feature Modules (Vertical Slices)
+│   │       ├── auth/        # Authentication, JWT, and user management
+│   │       ├── movies/      # Movie catalogue & search
+│   │       ├── cinemas/     # Venues & cinema locations
+│   │       ├── screens/     # Screens & seat layout generator
+│   │       ├── showtimes/   # Screenings & concurrency overlap locking
+│   │       └── bookings/    # Concurrency-safe reservations & cancellations
 │   └── tests/               # Backend unit and concurrency test suites
 └── frontend/
     ├── package.json         # Frontend scripts and dependencies
     ├── src/
-    │   ├── App.jsx          # Main application & routing logic
+    │   ├── App.jsx          # Clean root shell with AuthProvider and AppRouter
     │   ├── App.css          # Design tokens and responsive styles
-    │   └── lib/api.js       # Typed API client and query builders
+    │   ├── index.css        # Tailwind CSS 4 theme tokens
+    │   ├── core/            # Foundational router, configs, and formatters
+    │   ├── shared/          # Reusable UI primitives (Navbar, Footer, Modal, Toast)
+    │   └── modules/         # Feature Modules (Vertical Slices)
+    │       ├── auth/        # Auth context, localStorage persistence, forms & guards
+    │       ├── movies/      # Movie catalogue, hero carousel, filters, cards
+    │       ├── showtimes/   # Date tabs, cinema groups, showtime pills
+    │       ├── booking/     # Interactive 220-seat matrix & ticket pass receipt
+    │       ├── user-bookings/ # Reservation history & cancellation
+    │       └── admin/       # Management portal for movies, venues, screens, schedules
     └── tests/               # Frontend unit test suites
 ```
 
@@ -130,18 +144,19 @@ npm run db:migrate
 
 ---
 
-### 5. (Optional) Seed Sample Movie Catalogue
+### 5. Seed Complete Platform (Movies, Venues, Screens, Showtimes, & Users)
 
-Populate the database with 16 realistic sample movies:
+Populate the database with a full development dataset including 16 movies, 2 luxury cinemas, 4 screens with seat matrices, upcoming screenings (today & tomorrow), an admin user, and a test member:
 ```bash
 cd backend
-npm run db:seed
+npm run db:seed:all
 ```
 
-**Seeder Behavior & Features:**
-- **Catalogue**: Inserts 16 movies across multiple Indian and international languages (English, Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali, Marathi, Spanish, French, Japanese, Korean).
-- **Poster Fallbacks**: Includes 2 movies with `posterUrl: null` (`The Silk Trail`, `Karavali Kogile`) to test frontend poster fallback layouts.
-- **Idempotency**: Sequentially idempotent, but not concurrency-safe. The database schema does not enforce a UNIQUE constraint on movie titles, so concurrent seed executions could insert duplicate titles. For sequential developer runs, it matches trimmed, lowercase titles against existing records and skips already present entries (`0 new movies inserted, 16 skipped`).
+**Default Test Credentials:**
+- **Concierge Admin**: `admin@cinevo.luxury` / `Admin@12345`
+- **Club Member**: `member@cinevo.luxury` / `Member@12345`
+
+*(Alternatively, run `npm run db:seed` to seed movies only).*
 
 ---
 

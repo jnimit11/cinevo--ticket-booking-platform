@@ -1,6 +1,6 @@
 import app from "./app.js";
-import { pool } from "./db/index.js";
-import { env } from "./config/env.js";
+import { pool } from "./core/db/client.js";
+import { env } from "./core/config/env.js";
 
 async function startServer() {
   try {
@@ -16,4 +16,5 @@ async function startServer() {
     process.exit(1);
   }
 }
+
 startServer();

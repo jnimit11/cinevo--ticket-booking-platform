@@ -185,6 +185,12 @@ export const SAMPLE_MOVIES = [
  * seeding, this does not guarantee database-enforced uniqueness against concurrent runs.
  */
 export async function seedMovies() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Seeding is strictly forbidden in production environment (NODE_ENV=production).",
+    );
+  }
+
   try {
     const existingRecords = await db
       .select({ title: movies.title })
