@@ -1224,8 +1224,8 @@ export function SeatSelectionView({
             </div>
           )}
           <AuthForm
-            initialMode="signin"
-            onSuccess={() => {
+            initialMode="login"
+            onAuthenticated={() => {
               setShowAuthForm(false);
               setAuthError("");
               setViewStep("review");
