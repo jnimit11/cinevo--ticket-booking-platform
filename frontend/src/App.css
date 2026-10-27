@@ -32,20 +32,20 @@
    ========================================================================== */
 .navbar {
   height: 76px;
-  max-width: 1360px;
+  width: 100%;
+  max-width: 100%;
   padding: 0 24px;
-  margin: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   position: sticky;
   top: 0;
-  z-index: 50;
-  background: rgba(19, 19, 25, 0.88);
+  z-index: 100;
+  background: rgba(19, 19, 25, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .brand {
