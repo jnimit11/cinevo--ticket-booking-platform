@@ -61,14 +61,20 @@ export function useMovies() {
     return Array.from(set).sort();
   }, [movies]);
 
-  const handleSearchChange = useCallback((value) => {
-    setSearchInput(value);
+  const handleSearchChange = useCallback((eventOrValue) => {
+    const val = typeof eventOrValue === "object" && eventOrValue !== null && "target" in eventOrValue
+      ? eventOrValue.target.value
+      : eventOrValue ?? "";
+    setSearchInput(val);
     setPage(1);
     setLoadStatus("loading");
   }, []);
 
-  const handleLanguageChange = useCallback((value) => {
-    setSelectedLanguage(value);
+  const handleLanguageChange = useCallback((eventOrValue) => {
+    const val = typeof eventOrValue === "object" && eventOrValue !== null && "target" in eventOrValue
+      ? eventOrValue.target.value
+      : eventOrValue ?? "";
+    setSelectedLanguage(val);
     setPage(1);
     setLoadStatus("loading");
   }, []);

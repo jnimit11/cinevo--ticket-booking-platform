@@ -3,6 +3,7 @@ import { useMovies } from "./useMovies.js";
 import { MovieHeroCarousel } from "./MovieHeroCarousel.jsx";
 import { MovieGrid } from "./MovieGrid.jsx";
 import { useLocalStorage } from "../../shared/hooks/useLocalStorage.js";
+import { CATALOGUE_PAGE_LIMIT } from "../../core/config/constants.js";
 
 const FORMAT_OPTIONS = [
   "All Formats",
@@ -185,14 +186,14 @@ export function MovieCatalogueView({ onSelectMovie }) {
         {/* Movie Grid & Pagination */}
         {loadStatus === "success" && movies.length > 0 && (
           <>
-            <div className={movies.length === 1 ? "movie-grid single-result" : "movie-grid"}>
-              <MovieGrid
-                movies={movies}
-                savedMovieIds={savedMovieIds}
-                onToggleSaved={toggleSaved}
-                onSelectMovie={onSelectMovie}
-              />
-            </div>
+            <MovieGrid
+              movies={movies}
+              page={page}
+              limit={CATALOGUE_PAGE_LIMIT}
+              savedMovieIds={savedMovieIds}
+              onToggleSaved={toggleSaved}
+              onSelectMovie={onSelectMovie}
+            />
 
             {pagination.totalPages > 1 && (
               <nav className="catalogue-pagination" aria-label="Movie catalogue pagination">
