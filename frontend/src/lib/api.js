@@ -182,6 +182,16 @@ export async function createDashboardMovie(movie, token) {
   return data.movie;
 }
 
+export async function deleteDashboardMovie(movieId, token) {
+  const data = await authenticatedRequest(
+    `/movies/${encodeURIComponent(movieId)}`,
+    token,
+    { method: "DELETE" },
+  );
+
+  return data;
+}
+
 export async function createDashboardCinema(cinema, token) {
   const data = await postJson("/cinemas", cinema, { token });
 
@@ -337,14 +347,14 @@ async function authenticatedRequest(path, token, { method = "GET", signal } = {}
   try {
     data = await response.json();
   } catch {
-    const error = new Error("The bookings API returned an invalid response.");
+    const error = new Error("The API returned an invalid response.");
     error.status = response.status;
     throw error;
   }
 
   if (!response.ok) {
     const error = new Error(
-      typeof data?.message === "string" ? data.message : "The bookings request failed.",
+      typeof data?.message === "string" ? data.message : "The request failed.",
     );
     error.status = response.status;
     throw error;

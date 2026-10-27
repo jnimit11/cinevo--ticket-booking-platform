@@ -3,6 +3,7 @@ import {
   getDashboardMovies,
   getDashboardCinemas,
   getDashboardShowtimes,
+  deleteDashboardMovie,
 } from "./adminApi.js";
 import { AddMovieForm, AddCinemaForm } from "./AddMovieForm.jsx";
 import { ScreenManagementSection, ShowtimeForm } from "./ScreenSeatGenerator.jsx";
@@ -20,12 +21,16 @@ function AdminListSection({
   showAddShowtime = false,
   screens = [],
   icon = "category",
+  onDeleteItem = null,
 }) {
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [createdItem, setCreatedItem] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [itemErrors, setItemErrors] = useState({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,11 +75,82 @@ function AdminListSection({
     setLoadAttempt((attempt) => attempt + 1);
   }
 
+  async function handleDelete(item) {
+    if (!onDeleteItem) return;
+    setDeletingId(item.id);
+    setItemErrors((prev) => ({ ...prev, [item.id]: "" }));
+    try {
+      await onDeleteItem(item.id, token);
+      setItems((current) => current.filter((i) => i.id !== item.id));
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setItemErrors((prev) => ({
+        ...prev,
+        [item.id]: err.message || "Failed to delete item.",
+      }));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const renderedItems = items.length ? (
     <ul className="admin-item-list">
       {items.map((item) => (
         <li className="admin-item" key={item.id}>
-          {renderItem(item)}
+          <div className="admin-item-row">
+            <div className="admin-item-info">{renderItem(item)}</div>
+            {onDeleteItem && (
+              <div className="admin-item-actions">
+                {confirmDeleteId === item.id ? (
+                  <div className="admin-delete-confirm">
+                    <button
+                      className="admin-delete-confirm-btn"
+                      type="button"
+                      disabled={deletingId === item.id}
+                      onClick={() => handleDelete(item)}
+                    >
+                      {deletingId === item.id ? "Deleting..." : "Confirm"}
+                    </button>
+                    <button
+                      className="admin-delete-cancel-btn"
+                      type="button"
+                      disabled={deletingId === item.id}
+                      onClick={() => {
+                        setConfirmDeleteId(null);
+                        setItemErrors((prev) => ({ ...prev, [item.id]: "" }));
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="admin-delete-button"
+                    type="button"
+                    title={`Delete ${item.title || "item"}`}
+                    onClick={() => {
+                      setConfirmDeleteId(item.id);
+                      setItemErrors((prev) => ({ ...prev, [item.id]: "" }));
+                    }}
+                  >
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: "14px" }}
+                      aria-hidden="true"
+                    >
+                      delete
+                    </span>
+                    <span>Delete</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {itemErrors[item.id] && (
+            <p className="admin-item-error" role="alert">
+              {itemErrors[item.id]}
+            </p>
+          )}
         </li>
       ))}
     </ul>
@@ -116,7 +192,9 @@ function AdminListSection({
       {showAddCinema && <AddCinemaForm token={token} onCreated={handleItemCreated} />}
       {showAddShowtime && <ShowtimeForm token={token} screens={screens} onCreated={handleItemCreated} />}
       <p className="admin-capability">
-        {showAddMovie || showAddCinema || showAddShowtime
+        {showAddMovie
+          ? "Delete endpoint is active for movies without scheduled showtimes. Edit endpoint is not available."
+          : showAddCinema || showAddShowtime
           ? "Edit and delete endpoints are not available."
           : "Create endpoint exists; dashboard forms are not available. Edit and delete endpoints are not available."}
       </p>
@@ -150,6 +228,7 @@ export function AdminDashboardView({ onBack }) {
           loadItems={getDashboardMovies}
           token={effectiveToken}
           showAddMovie
+          onDeleteItem={deleteDashboardMovie}
           renderItem={(movie) => (
             <>
               <strong>{movie.title}</strong>

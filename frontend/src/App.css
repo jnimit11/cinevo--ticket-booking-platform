@@ -3294,6 +3294,89 @@
   font-size: 11px;
   line-height: 1.5;
 }
+.admin-item-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-item-info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid rgba(201, 59, 78, 0.3);
+  border-radius: 6px;
+  background: rgba(201, 59, 78, 0.08);
+  color: #ff9a9a;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.admin-delete-button:hover:not(:disabled) {
+  border-color: rgba(201, 59, 78, 0.6);
+  background: rgba(201, 59, 78, 0.22);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.admin-delete-button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.admin-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.admin-delete-confirm-btn {
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: #c93b4e;
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.admin-delete-confirm-btn:hover:not(:disabled) {
+  background: #e0455a;
+}
+.admin-delete-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.admin-delete-cancel-btn {
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  background: transparent;
+  color: #aaa5ae;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.admin-delete-cancel-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #f1edf2;
+}
+.admin-item-error {
+  color: #ff9a9a;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
 .admin-state {
   margin: 0;
   padding: 24px 16px;

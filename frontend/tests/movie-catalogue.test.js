@@ -1,6 +1,7 @@
 import { describe, it, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { API_BASE_URL, buildMovieQuery, getMovies, resolveApiBaseUrl } from '../src/lib/api.js'
+import { API_BASE_URL, buildMovieQuery, getMovies, deleteDashboardMovie, resolveApiBaseUrl } from '../src/lib/api.js'
+
 
 describe('Movie Catalogue & Query Construction', () => {
   describe('buildMovieQuery', () => {
@@ -291,4 +292,49 @@ describe('Movie Catalogue & Query Construction', () => {
       )
     })
   })
+
+  describe('deleteDashboardMovie API Helper', () => {
+    const originalFetch = globalThis.fetch
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch
+    })
+
+    it('sends authenticated DELETE request to /movies/:id', async () => {
+      let requestedUrl = ''
+      let requestedMethod = ''
+      let requestedHeaders = {}
+
+      globalThis.fetch = async (url, options) => {
+        requestedUrl = String(url)
+        requestedMethod = options.method
+        requestedHeaders = options.headers
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true, message: 'Movie deleted successfully' }),
+        }
+      }
+
+      const res = await deleteDashboardMovie('movie-uuid-123', 'admin-auth-token')
+      assert.equal(requestedUrl, `${API_BASE_URL}/movies/movie-uuid-123`)
+      assert.equal(requestedMethod, 'DELETE')
+      assert.equal(requestedHeaders.Authorization, 'Bearer admin-auth-token')
+      assert.equal(res.success, true)
+    })
+
+    it('throws error when server responds with non-ok status', async () => {
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 409,
+        json: async () => ({ success: false, message: 'Cannot delete movie because it has active showtimes.' }),
+      })
+
+      await assert.rejects(
+        () => deleteDashboardMovie('movie-uuid-123', 'admin-auth-token'),
+        /Cannot delete movie because it has active showtimes\./,
+      )
+    })
+  })
 })
+

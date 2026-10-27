@@ -69,3 +69,13 @@ export async function fetchMovieById(id) {
 
   return movie || null;
 }
+
+export async function removeMovieById(id) {
+  const [movie] = await db
+    .delete(movies)
+    .where(eq(movies.id, id))
+    .returning();
+
+  return movie || null;
+}
+

@@ -7,6 +7,7 @@ import {
   fetchMovies,
   insertMovie,
   fetchMovieById,
+  removeMovieById,
 } from "./movie.service.js";
 import { escapeLikePattern } from "../../core/utils/string.js";
 
@@ -90,3 +91,41 @@ export async function getMovieById(req, res, next) {
     next(error);
   }
 }
+
+export async function deleteMovie(req, res, next) {
+  try {
+    const validation = movieIdSchema.safeParse(req.params.id);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie ID",
+        errors: validation.error.issues,
+      });
+    }
+
+    const movie = await removeMovieById(validation.data);
+
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Movie deleted successfully",
+      movie,
+    });
+  } catch (error) {
+    if (error.code === "23503") {
+      return res.status(409).json({
+        success: false,
+        message: "Cannot delete movie because it has active showtimes. Remove scheduled showtimes first.",
+      });
+    }
+    next(error);
+  }
+}
+
