@@ -13,177 +13,138 @@ export function Navbar({
 
   return (
     <header className="navbar">
-      <a
-        href="#movies"
-        className="brand"
-        onClick={(e) => {
-          e.preventDefault();
-          onNavigateHome();
-        }}
-      >
-        <span className="brand-dot" aria-hidden="true" />
-        <span className="brand-text">CINEVO</span>
-      </a>
-
-      {/* Desktop Navigation Links */}
-      <nav className="nav-links" aria-label="Main Navigation">
+      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
         <a
-          href="#movies"
-          className={activeRoute === "movies" ? "nav-active" : ""}
+          className="brand"
+          href="#home"
+          aria-label="Cinevo home"
           onClick={(e) => {
             e.preventDefault();
             onNavigateHome();
           }}
         >
-          Screenings
+          <span className="brand-text">CINEVO</span>
+          <span className="brand-dot" />
         </a>
+      </div>
 
+      {/* Desktop Navigation Links */}
+      <nav className={`nav-links ${mobileMenuOpen ? "mobile-open" : ""}`} aria-label="Main Navigation">
+        <a
+          className={activeRoute === "movies" ? "nav-active" : ""}
+          href="#home"
+          onClick={(e) => {
+            e.preventDefault();
+            setMobileMenuOpen(false);
+            onNavigateHome();
+          }}
+        >
+          Home
+        </a>
+        <a
+          href="#movies"
+          onClick={(e) => {
+            e.preventDefault();
+            setMobileMenuOpen(false);
+            onNavigateHome();
+            requestAnimationFrame(() => {
+              document.getElementById("movies")?.scrollIntoView({ behavior: "smooth" });
+            });
+          }}
+        >
+          Explore Movies
+        </a>
         {isAuthenticated && (
           <a
-            href="#bookings"
             className={activeRoute === "bookings" ? "nav-active" : ""}
+            href="#bookings"
             onClick={(e) => {
               e.preventDefault();
+              setMobileMenuOpen(false);
               onNavigateBookings();
             }}
           >
             My Bookings
           </a>
         )}
-
         {isAdmin && (
           <a
-            href="#admin"
             className={activeRoute === "admin" ? "nav-active" : ""}
+            href="#admin"
             onClick={(e) => {
               e.preventDefault();
+              setMobileMenuOpen(false);
               onNavigateAdmin();
             }}
           >
-            Concierge Admin
+            Admin Dashboard
           </a>
         )}
       </nav>
 
       {/* Desktop Nav Actions */}
       <div className="nav-actions">
+        <button
+          className="quick-search-trigger"
+          type="button"
+          onClick={() => {
+            document.getElementById("movies")?.scrollIntoView({ behavior: "smooth" });
+            const input = document.querySelector(".search-box input");
+            if (input) input.focus();
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+            search
+          </span>
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
+
         {isAuthenticated ? (
-          <div className="user-badge">
-            <span className="user-avatar" aria-hidden="true">
-              {user?.name ? user.name[0].toUpperCase() : "U"}
-            </span>
-            <span className="user-name">{user?.name || "Member"}</span>
-            <button
-              type="button"
-              className="ghost-button"
-              style={{ fontSize: "11px", padding: "4px 8px" }}
-              onClick={logout}
-              title="Sign out of Cinevo"
-            >
-              Sign Out
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="user-badge" title={user?.email || "Logged in"}>
+              <span className="user-avatar">
+                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+              </span>
+              <span className="user-name">{user?.name || "Account"}</span>
+            </div>
+            <button className="signin-button" type="button" onClick={logout}>
+              Sign out
             </button>
           </div>
         ) : (
           <div style={{ display: "flex", gap: "8px" }}>
             <button
+              className="signin-button"
               type="button"
-              className="secondary-button"
-              style={{ padding: "6px 14px", fontSize: "12px" }}
               onClick={() => onNavigateAuth("login")}
             >
-              Sign In
+              <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
+                person
+              </span>
+              <span>Sign in</span>
             </button>
             <button
-              type="button"
               className="primary-button"
-              style={{ padding: "6px 14px", fontSize: "12px" }}
+              type="button"
               onClick={() => onNavigateAuth("register")}
             >
-              Register
+              <span>Register</span>
             </button>
           </div>
         )}
 
-        {/* Mobile menu toggle */}
         <button
+          className="mobile-nav-toggle"
           type="button"
-          className="mobile-menu-toggle"
-          onClick={() => setMobileMenuOpen((open) => !open)}
-          aria-expanded={mobileMenuOpen}
           aria-label="Toggle navigation menu"
+          onClick={() => setMobileMenuOpen((open) => !open)}
         >
-          <span className="material-symbols-outlined" aria-hidden="true">
+          <span className="material-symbols-outlined">
             {mobileMenuOpen ? "close" : "menu"}
           </span>
         </button>
       </div>
-
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="mobile-drawer" role="dialog" aria-modal="true">
-          <a
-            href="#movies"
-            className="mobile-nav-item"
-            onClick={(e) => {
-              e.preventDefault();
-              setMobileMenuOpen(false);
-              onNavigateHome();
-            }}
-          >
-            Screenings
-          </a>
-          {isAuthenticated && (
-            <a
-              href="#bookings"
-              className="mobile-nav-item"
-              onClick={(e) => {
-                e.preventDefault();
-                setMobileMenuOpen(false);
-                onNavigateBookings();
-              }}
-            >
-              My Bookings
-            </a>
-          )}
-          {isAdmin && (
-            <a
-              href="#admin"
-              className="mobile-nav-item"
-              onClick={(e) => {
-                e.preventDefault();
-                setMobileMenuOpen(false);
-                onNavigateAdmin();
-              }}
-            >
-              Concierge Admin
-            </a>
-          )}
-          {!isAuthenticated && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "1rem" }}>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onNavigateAuth("login");
-                }}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onNavigateAuth("register");
-                }}
-              >
-                Register
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </header>
   );
 }
