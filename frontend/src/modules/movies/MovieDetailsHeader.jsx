@@ -122,7 +122,13 @@ export function MovieDetailsHeader({ movie, isSaved = false, onToggleSaved, onBa
               )}
 
               <div className="detail-action-buttons">
-                <a className="primary-button select-showtime-cta" href="#showtimes">
+                <button
+                  className="primary-button select-showtime-cta"
+                  type="button"
+                  onClick={() => {
+                    document.getElementById("showtimes")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                >
                   <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
                     calendar_month
                   </span>
@@ -130,7 +136,7 @@ export function MovieDetailsHeader({ movie, isSaved = false, onToggleSaved, onBa
                   <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
                     arrow_downward
                   </span>
-                </a>
+                </button>
                 <button className="secondary-button back-cta-btn" onClick={onBack} type="button">
                   <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
                     arrow_back

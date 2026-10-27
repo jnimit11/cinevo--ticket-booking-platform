@@ -75,12 +75,18 @@ export function MovieHeroCarousel({ movies = [], onSelectMovie }) {
                   </span>
                   <span>Book Tickets</span>
                 </button>
-                <a className="secondary-button" href="#movies">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    document.getElementById("movies")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                >
                   <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
                     explore
                   </span>
                   <span>Explore Movies</span>
-                </a>
+                </button>
               </div>
             </div>
 
